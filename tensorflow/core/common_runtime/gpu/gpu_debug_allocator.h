@@ -38,7 +38,7 @@ class GPUDebugAllocator : public Allocator {
   ~GPUDebugAllocator() override;
   string Name() override { return "gpu_debug"; }
   void* AllocateRaw(size_t alignment, size_t num_bytes) override;
-  void DeallocateRaw(void* ptr) override;
+  void DeallocateRaw(void* ptr, size_t num_bytes) override;
   bool TracksAllocationSizes() override;
   size_t RequestedSize(const void* ptr) override;
   size_t AllocatedSize(const void* ptr) override;
@@ -68,7 +68,7 @@ class GPUNanResetAllocator : public Allocator {
   ~GPUNanResetAllocator() override;
   string Name() override { return "gpu_nan_reset"; }
   void* AllocateRaw(size_t alignment, size_t num_bytes) override;
-  void DeallocateRaw(void* ptr) override;
+  void DeallocateRaw(void* ptr, size_t num_bytes) override;
   size_t RequestedSize(const void* ptr) override;
   size_t AllocatedSize(const void* ptr) override;
   void GetStats(AllocatorStats* stats) override;

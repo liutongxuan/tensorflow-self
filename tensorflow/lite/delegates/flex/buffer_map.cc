@@ -79,7 +79,7 @@ class TfLiteTensorBuffer : public BaseTfLiteTensorBuffer {
 
   ~TfLiteTensorBuffer() override {
     LogDeallocation();
-    tensorflow::cpu_allocator()->DeallocateRaw(data());
+    tensorflow::cpu_allocator()->DeallocateRaw(data(), len_);
   }
 
   size_t size() const override { return len_; }

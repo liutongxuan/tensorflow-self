@@ -36,7 +36,7 @@ class GPUcudaMallocAllocator : public Allocator {
   ~GPUcudaMallocAllocator() override;
   string Name() override { return "gpu_debug"; }
   void* AllocateRaw(size_t alignment, size_t num_bytes) override;
-  void DeallocateRaw(void* ptr) override;
+  void DeallocateRaw(void* ptr, size_t num_bytes) override;
   bool TracksAllocationSizes() override;
 
  private:

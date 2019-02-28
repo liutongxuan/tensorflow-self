@@ -49,7 +49,7 @@ class MemmappedTensorAllocator : public Allocator {
     return const_cast<void*>(memory_region_->data());
   }
 
-  void DeallocateRaw(void* ptr) override {
+  void DeallocateRaw(void* ptr, size_t num_bytes) override {
     if (ptr != memory_region_->data()) {
       LOG(ERROR)
           << "Deallocating not allocated region for readonly memory region";

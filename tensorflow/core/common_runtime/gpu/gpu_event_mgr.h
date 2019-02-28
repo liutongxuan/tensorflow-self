@@ -139,7 +139,7 @@ class EventMgr {
                                            iu.bufrec.step_id, iu.bufrec.buf,
                                            iu.bufrec.alloc, false);
         }
-        iu.bufrec.alloc->DeallocateRaw(iu.bufrec.buf);
+        iu.bufrec.alloc->DeallocateRaw(iu.bufrec.buf, 0);
       }
       // The function must be called in another thread.
       if (iu.func != nullptr) threadpool_.Schedule(iu.func);

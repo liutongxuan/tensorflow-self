@@ -206,7 +206,7 @@ class XlaTensorBuffer : public TensorBuffer {
 
   ~XlaTensorBuffer() override {
     if (data()) {
-      allocator_->DeallocateRaw(data());
+      allocator_->DeallocateRaw(data(), size());
     }
   }
 

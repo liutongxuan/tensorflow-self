@@ -40,7 +40,7 @@ class XlaDeviceAllocator : public Allocator {
   string Name() override;
 
   void* AllocateRaw(size_t alignment, size_t num_bytes) override;
-  void DeallocateRaw(void* ptr) override;
+  void DeallocateRaw(void* ptr, size_t num_bytes) override;
   void GetStats(AllocatorStats* stats) override;
 };
 

@@ -273,7 +273,7 @@ TEST_F(GPUDeviceTest, UnifiedMemoryAllocation) {
   void* ptr = allocator->AllocateRaw(Allocator::kAllocatorAlignment,
                                      (memory_limit >> 20) << 20);
   EXPECT_NE(ptr, nullptr);
-  allocator->DeallocateRaw(ptr);
+  allocator->DeallocateRaw(ptr, 0);
 }
 
 }  // namespace tensorflow

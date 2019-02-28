@@ -32,7 +32,7 @@ class TestableSizeTrackingAllocator : public Allocator {
     size_map_[ptr] = num_bytes;
     return ptr;
   }
-  void DeallocateRaw(void* ptr) override {
+  void DeallocateRaw(void* ptr, size_t num_bytes) override {
     const auto& iter = size_map_.find(ptr);
     EXPECT_NE(size_map_.end(), iter);
     size_map_.erase(iter);
@@ -56,7 +56,7 @@ class NoMemoryAllocator : public Allocator {
   void* AllocateRaw(size_t /*alignment*/, size_t num_bytes) override {
     return nullptr;
   }
-  void DeallocateRaw(void* ptr) override {}
+  void DeallocateRaw(void* ptr, size_t num_bytes) override {}
   bool TracksAllocationSizes() override { return true; }
   void GetStats(AllocatorStats* stats) override { stats->Clear(); }
 };
@@ -72,7 +72,7 @@ TEST(TrackingAllocatorTest, SimpleNoTracking) {
   TrackingAllocator* ta = new TrackingAllocator(a, false);
 
   void* p1 = ta->AllocateRaw(4, 4);
-  ta->DeallocateRaw(p1);
+  ta->DeallocateRaw(p1, 4);
   void* p2 = ta->AllocateRaw(4, 12);
 
   std::tuple<size_t, size_t, size_t> sizes = ta->GetSizes();
@@ -81,7 +81,7 @@ TEST(TrackingAllocatorTest, SimpleNoTracking) {
   EXPECT_EQ(0, std::get<1>(sizes));
   EXPECT_EQ(0, std::get<2>(sizes));
 
-  ta->DeallocateRaw(p2);
+  ta->DeallocateRaw(p2, 12);
   auto records = ta->GetRecordsAndUnRef();
   EXPECT_EQ(4, records[0].alloc_bytes);
   EXPECT_EQ(12, records[1].alloc_bytes);
@@ -93,7 +93,7 @@ TEST(TrackingAllocatorTest, SimpleNoTracking) {
   EXPECT_LE(4, ta->AllocatedSize(p1));
   EXPECT_EQ(1, ta->AllocationId(p1));
 
-  ta->DeallocateRaw(p1);
+  ta->DeallocateRaw(p1, 4);
   p2 = ta->AllocateRaw(4, 12);
   EXPECT_EQ(12, ta->RequestedSize(p2));
   EXPECT_LE(12, ta->AllocatedSize(p2));
@@ -105,7 +105,7 @@ TEST(TrackingAllocatorTest, SimpleNoTracking) {
   EXPECT_LE(12, std::get<1>(sizes));
   EXPECT_LE(12, std::get<2>(sizes));
 
-  ta->DeallocateRaw(p2);
+  ta->DeallocateRaw(p2, 12);
   records = ta->GetRecordsAndUnRef();
   EXPECT_LE(4, records[0].alloc_bytes);
   EXPECT_GE(-4, records[1].alloc_bytes);
@@ -121,7 +121,7 @@ TEST(TrackingAllocatorTest, SimpleTracking) {
   TrackingAllocator* ta = new TrackingAllocator(&a, false);
 
   void* p1 = ta->AllocateRaw(4, 12);
-  ta->DeallocateRaw(p1);
+  ta->DeallocateRaw(p1, 12);
   void* p2 = ta->AllocateRaw(4, 4);
 
   std::tuple<size_t, size_t, size_t> sizes = ta->GetSizes();
@@ -130,7 +130,7 @@ TEST(TrackingAllocatorTest, SimpleTracking) {
   EXPECT_EQ(12, std::get<1>(sizes));
   EXPECT_EQ(4, std::get<2>(sizes));
 
-  ta->DeallocateRaw(p2);
+  ta->DeallocateRaw(p2, 4);
 
   auto records = ta->GetRecordsAndUnRef();
   EXPECT_EQ(12, records[0].alloc_bytes);
@@ -165,7 +165,7 @@ TEST(TrackingAllocatorTest, FreeNullPtr) {
 
   TrackingAllocator* ta = new TrackingAllocator(&a, false);
 
-  ta->DeallocateRaw(nullptr);
+  ta->DeallocateRaw(nullptr, 0);
 
   std::tuple<size_t, size_t, size_t> sizes = ta->GetSizes();
 

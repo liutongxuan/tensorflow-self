@@ -100,7 +100,7 @@ void* GPUDebugAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
            after_mask);
   return rv;
 }
-void GPUDebugAllocator::DeallocateRaw(void* ptr) {
+void GPUDebugAllocator::DeallocateRaw(void* ptr, size_t num_bytes) {
   if (ptr != nullptr) {
     CHECK(CheckHeader(ptr)) << "before_mask has been overwritten";
     CHECK(CheckFooter(ptr)) << "after_mask has been overwritten";
@@ -109,7 +109,7 @@ void GPUDebugAllocator::DeallocateRaw(void* ptr) {
     ptr = static_cast<void*>(static_cast<char*>(ptr) - MASK_BYTES);
   }
   // Deallocate the memory
-  base_allocator_->DeallocateRaw(ptr);
+  base_allocator_->DeallocateRaw(ptr, num_bytes);
 }
 
 bool GPUDebugAllocator::TracksAllocationSizes() { return true; }
@@ -177,7 +177,8 @@ void* GPUNanResetAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
 
   return allocated_ptr;
 }
-void GPUNanResetAllocator::DeallocateRaw(void* ptr) {
+
+void GPUNanResetAllocator::DeallocateRaw(void* ptr, size_t num_bytes) {
   if (ptr != nullptr) {
     // Reset the buffer to Nans
     size_t req_size = base_allocator_->RequestedSize(ptr);
@@ -191,7 +192,7 @@ void GPUNanResetAllocator::DeallocateRaw(void* ptr) {
   }
 
   // Deallocate the memory
-  base_allocator_->DeallocateRaw(ptr);
+  base_allocator_->DeallocateRaw(ptr, num_bytes);
 }
 
 size_t GPUNanResetAllocator::RequestedSize(const void* ptr) {

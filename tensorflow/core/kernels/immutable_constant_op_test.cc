@@ -44,7 +44,7 @@ class TestReadOnlyMemoryRegion : public ReadOnlyMemoryRegion {
       : memptr_(cpu_allocator()->AllocateRaw(kTestAlignment, length)),
         length_(length) {}
   ~TestReadOnlyMemoryRegion() override {
-    cpu_allocator()->DeallocateRaw(memptr_);
+    cpu_allocator()->DeallocateRaw(memptr_, length_);
   }
   const void* data() override { return memptr_; }
   float* GetWritableDataStart() { return reinterpret_cast<float*>(memptr_); }

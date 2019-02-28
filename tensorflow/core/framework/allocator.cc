@@ -128,7 +128,10 @@ class CPUAllocator : public Allocator {
 
     void* p = port::AlignedMalloc(num_bytes, alignment);
     if (cpu_allocator_collect_stats) {
-      const std::size_t alloc_size = port::MallocExtension_GetAllocatedSize(p);
+      // NOTE: MallocExtension_GetAllocatedSize return 0,
+      // correct by request bytes.
+      auto alloc_size = std::max<int64>(
+          port::MallocExtension_GetAllocatedSize(p), num_bytes);
       mutex_lock l(mu_);
       ++stats_.num_allocs;
       stats_.bytes_in_use += alloc_size;
@@ -148,10 +151,13 @@ class CPUAllocator : public Allocator {
     return p;
   }
 
-  void DeallocateRaw(void* ptr) override {
+  void DeallocateRaw(void* ptr, size_t num_bytes) override {
     if (cpu_allocator_collect_stats) {
-      const std::size_t alloc_size =
-          port::MallocExtension_GetAllocatedSize(ptr);
+      // NOTE: MallocExtension_GetAllocatedSize return 0,
+      // correct by request bytes.
+      auto alloc_size = std::max<int64>(
+          port::MallocExtension_GetAllocatedSize(ptr), num_bytes)
+      
       mutex_lock l(mu_);
       stats_.bytes_in_use -= alloc_size;
     }
@@ -205,7 +211,7 @@ class CPUAllocatorFactory : public AllocatorFactory {
     }
 
     void Free(void* ptr, size_t num_bytes) override {
-      cpu_allocator_->DeallocateRaw(ptr);
+      cpu_allocator_->DeallocateRaw(ptr, num_bytes);
     }
 
    private:

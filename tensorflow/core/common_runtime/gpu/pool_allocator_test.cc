@@ -36,7 +36,7 @@ TEST(PoolAllocatorTest, ZeroSizeBuffers) {
       new NoopRounder, "pool");
 
   EXPECT_EQ(nullptr, pool.AllocateRaw(4 /*alignment*/, 0 /*num_bytes*/));
-  pool.DeallocateRaw(nullptr);  // Should not crash.
+  pool.DeallocateRaw(nullptr, 0);  // Should not crash.
   EXPECT_EQ(0, pool.get_from_pool_count());
   EXPECT_EQ(0, pool.put_count());
   EXPECT_EQ(0, pool.allocated_count());
@@ -67,9 +67,9 @@ TEST(PoolAllocatorTest, ZeroSizePool) {
     EXPECT_EQ(nullptr, p0);
     EXPECT_NE(nullptr, p4);
     EXPECT_NE(nullptr, p12);
-    pool.DeallocateRaw(p0);
-    pool.DeallocateRaw(p4);
-    pool.DeallocateRaw(p12);
+    pool.DeallocateRaw(p0, 0);
+    pool.DeallocateRaw(p4, 4);
+    pool.DeallocateRaw(p12, 12);
   }
   EXPECT_EQ(0, pool.get_from_pool_count());
   EXPECT_EQ(0, pool.put_count());
@@ -107,7 +107,7 @@ TEST(PoolAllocatorTest, AutoResize) {
   // stays at 2.
   for (int i = 0; i < 10; ++i) {
     void* p = pool.AllocateRaw(4, 64 << i);
-    pool.DeallocateRaw(p);
+    pool.DeallocateRaw(p, 64 << i);
   }
   EXPECT_EQ(0, pool.get_from_pool_count());
   EXPECT_EQ(10, pool.allocated_count());
@@ -119,7 +119,7 @@ TEST(PoolAllocatorTest, AutoResize) {
   for (int j = 0; j < 120; ++j) {
     for (int i = 0; i < 10; ++i) {
       void* p = pool.AllocateRaw(4, 64 << i);
-      pool.DeallocateRaw(p);
+      pool.DeallocateRaw(p, 64 << i);
     }
   }
   EXPECT_EQ(100, pool.size_limit());
@@ -163,14 +163,14 @@ TEST(PoolAllocatorTest, CudaHostAllocator) {
   // Each suballocation includes a 16B ChunkPrefix.
   static const int kChunkPrefixSize = 16;
   EXPECT_EQ(16 + (alloc_count * kChunkPrefixSize), alloc_size);
-  pool.DeallocateRaw(p1_16);
+  pool.DeallocateRaw(p1_16, 16);
   // Pool contents {16}
   EXPECT_EQ(1, pool.put_count());
   void* p2_16 = pool.AllocateRaw(4, 16);  // Get it again.
   EXPECT_EQ(1, pool.get_from_pool_count());
   EXPECT_EQ(1, pool.allocated_count());
   EXPECT_EQ(p1_16, p2_16);    // Same pointer value
-  pool.DeallocateRaw(p2_16);  // Put it back.
+  pool.DeallocateRaw(p2_16, 16);  // Put it back.
   // Pool contents {16}
   EXPECT_EQ(2, pool.put_count());
   EXPECT_EQ(1, alloc_count);  // Underlying suballoc of 16 bytes
@@ -182,7 +182,7 @@ TEST(PoolAllocatorTest, CudaHostAllocator) {
   EXPECT_EQ(2, pool.allocated_count());
   EXPECT_NE(p1_16, p3_4);  // Different pointer value
   EXPECT_NE(nullptr, p3_4);
-  pool.DeallocateRaw(p3_4);  // Put it back. Pool is now full.
+  pool.DeallocateRaw(p3_4, 4);  // Put it back. Pool is now full.
   // Pool contents {4, 16}
   EXPECT_EQ(3, pool.put_count());
   void* p4_2 = pool.AllocateRaw(4, 2);  // Get a third size buffer.
@@ -194,7 +194,7 @@ TEST(PoolAllocatorTest, CudaHostAllocator) {
 
   // The pool is full: when we put back p4_2, the 16-byte buffer
   // should be evicted since it was least recently inserted.
-  pool.DeallocateRaw(p4_2);
+  pool.DeallocateRaw(p4_2, 2);
   // Pool contents {2, 4}
   EXPECT_EQ(4, pool.put_count());
   EXPECT_EQ(1, pool.evicted_count());
@@ -207,10 +207,10 @@ TEST(PoolAllocatorTest, CudaHostAllocator) {
   // num-evicted.
   void* p5_4 = pool.AllocateRaw(4, 4);
   EXPECT_NE(nullptr, p5_4);
-  pool.DeallocateRaw(p5_4);
+  pool.DeallocateRaw(p5_4, 4);
   void* p6_2 = pool.AllocateRaw(4, 2);
   EXPECT_NE(nullptr, p6_2);
-  pool.DeallocateRaw(p6_2);
+  pool.DeallocateRaw(p6_2, 2);
   EXPECT_EQ(3, pool.get_from_pool_count());
   EXPECT_EQ(6, pool.put_count());
   EXPECT_EQ(3, pool.allocated_count());

@@ -140,8 +140,8 @@ TEST_F(ScopedAllocatorMgrTest, ContainerAddAllocator) {
       sa_instances_[0]->AllocateRaw(0 /* alignment */, 512 * sizeof(float));
   void* ptr1 =
       sa_instances_[1]->AllocateRaw(0 /* alignment */, 512 * sizeof(float));
-  sa_instances_[0]->DeallocateRaw(ptr0);
-  sa_instances_[1]->DeallocateRaw(ptr1);
+  sa_instances_[0]->DeallocateRaw(ptr0, 512 * sizeof(float));
+  sa_instances_[1]->DeallocateRaw(ptr1, 512 * sizeof(float));
 }
 
 TEST_F(ScopedAllocatorMgrTest, AllocatorSuccess) {
@@ -172,9 +172,9 @@ TEST_F(ScopedAllocatorMgrTest, AllocatorSuccess) {
 
   // The ScopedAllocatorInstances automatically delete when their memory
   // is returned and they are out of table.
-  inst0->DeallocateRaw(ptr0);
-  inst1->DeallocateRaw(ptr1);
-  inst2->DeallocateRaw(ptr2);
+  inst0->DeallocateRaw(ptr0, 512 * sizeof(float));
+  inst1->DeallocateRaw(ptr1, 512 * sizeof(float));
+  inst2->DeallocateRaw(ptr2, 512 * sizeof(float));
 }
 
 // ScopedAllocator initialization should fail because backing_tensor is not
@@ -209,7 +209,7 @@ TEST_F(ScopedAllocatorMgrTest, AllocatorFail) {
       static_cast<char*>(sa_instances_[0]->AllocateRaw(0, 512 * sizeof(float)));
   VLOG(2) << "Should fail because we deallocate ptr="
           << static_cast<void*>(ptr0 + 8) << " which we never allocated.";
-  EXPECT_DEATH(sa_instances_[0]->DeallocateRaw(ptr0 + 8), "");
+  EXPECT_DEATH(sa_instances_[0]->DeallocateRaw(ptr0 + 8, 512 * sizeof(float)), "");
   VLOG(2) << "Should fail because we allocate smaller than the size of the "
           << "field.";
   EXPECT_EQ(nullptr, sa_instances_[1]->AllocateRaw(0, 256 * sizeof(float)));
@@ -219,8 +219,8 @@ TEST_F(ScopedAllocatorMgrTest, AllocatorFail) {
   void* ptr1 = sa_instances_[1]->AllocateRaw(0, 512 * sizeof(float));
   VLOG(2) << "Should fail because we exceed expected_use_count.";
   EXPECT_EQ(nullptr, sa_instances_[0]->AllocateRaw(0, 512 * sizeof(float)));
-  sa_instances_[0]->DeallocateRaw(ptr0);
-  sa_instances_[1]->DeallocateRaw(ptr1);
+  sa_instances_[0]->DeallocateRaw(ptr0, 512 * sizeof(float));
+  sa_instances_[1]->DeallocateRaw(ptr1, 512 * sizeof(float));
 }
 
 }  // namespace

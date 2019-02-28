@@ -61,7 +61,7 @@ class TrackingAllocator : public Allocator {
   }
   void* AllocateRaw(size_t alignment, size_t num_bytes,
                     const AllocationAttributes& allocation_attr) override;
-  void DeallocateRaw(void* ptr) override;
+  void DeallocateRaw(void* ptr, size_t num_bytes) override;
   bool TracksAllocationSizes() override;
   size_t RequestedSize(const void* ptr) override;
   size_t AllocatedSize(const void* ptr) override;

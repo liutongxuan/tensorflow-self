@@ -50,7 +50,7 @@ class XlaCompilationAllocator : public Allocator {
     return expression;
   }
 
-  void DeallocateRaw(void* ptr) override {
+  void DeallocateRaw(void* ptr, size_t) override {
     XlaExpression* expression = reinterpret_cast<XlaExpression*>(ptr);
     expression->~XlaExpression();
     port::AlignedFree(ptr);

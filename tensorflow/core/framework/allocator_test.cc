@@ -96,7 +96,8 @@ TEST(CPUAllocatorTest, Simple) {
     if (i > 0) {
       CHECK_NE(ptrs[i], ptrs[i - 1]);  // No dups
     }
-    a->DeallocateRaw(ptrs[i]);
+    auto req_size = a->RequestedSize(ptrs[i]);
+    a->DeallocateRaw(ptrs[i], req_size);
   }
   CheckStats(a, 1023, 0, 552640, 1024);
   float* t1 = a->Allocate<float>(1024);
@@ -179,7 +180,7 @@ static void BM_Allocation(int iters, int arg) {
   while (--iters > 0) {
     int bytes = sizes[size_index++ % sizes.size()];
     void* p = a->AllocateRaw(1, bytes);
-    a->DeallocateRaw(p);
+    a->DeallocateRaw(p, bytes);
   }
   if (arg) EnableCPUAllocatorStats(false);
 }

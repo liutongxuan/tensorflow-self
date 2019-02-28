@@ -1122,7 +1122,7 @@ class DummyCPUAllocator : public Allocator {
   void* AllocateRaw(size_t alignment, size_t num_bytes) override {
     return nullptr;
   }
-  void DeallocateRaw(void* ptr) override {}
+  void DeallocateRaw(void* ptr, size_t num_bytes) override {}
 };
 
 TEST(Tensor, SharesBufferWith) {

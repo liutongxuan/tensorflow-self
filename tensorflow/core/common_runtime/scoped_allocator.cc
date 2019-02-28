@@ -96,7 +96,7 @@ void* ScopedAllocator::AllocateRaw(int32 field_index, size_t num_bytes) {
   return ptr;
 }
 
-void ScopedAllocator::DeallocateRaw(void* p) {
+void ScopedAllocator::DeallocateRaw(void* p, size_t num_bytes) {
   CHECK(VerifyPointer(p));
 
   bool dead = false;
@@ -184,8 +184,8 @@ void* ScopedAllocatorInstance::AllocateRaw(size_t alignment, size_t num_bytes) {
   return ptr;
 }
 
-void ScopedAllocatorInstance::DeallocateRaw(void* p) {
-  scoped_allocator_->DeallocateRaw(p);
+void ScopedAllocatorInstance::DeallocateRaw(void* p, size_t num_bytes) {
+  scoped_allocator_->DeallocateRaw(p, num_bytes);
   bool del = false;
   {
     mutex_lock l(mu_);

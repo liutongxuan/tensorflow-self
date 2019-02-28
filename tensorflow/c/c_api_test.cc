@@ -118,8 +118,8 @@ TEST(CAPI, Status) {
   TF_DeleteStatus(s);
 }
 
-void Deallocator(void* data, size_t, void* arg) {
-  tensorflow::cpu_allocator()->DeallocateRaw(data);
+void Deallocator(void* data, size_t len, void* arg) {
+  tensorflow::cpu_allocator()->DeallocateRaw(data, len);
   *reinterpret_cast<bool*>(arg) = true;
 }
 

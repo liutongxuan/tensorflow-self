@@ -187,7 +187,7 @@ xla::StatusOr<xla::OwningDeviceMemory> XlaAllocator::Allocate(
 }
 
 Status XlaAllocator::Deallocate(int device_ordinal, se::DeviceMemoryBase mem) {
-  wrapped_->DeallocateRaw(mem.opaque());
+  wrapped_->DeallocateRaw(mem.opaque(), mem.size());
   return Status::OK();
 }
 

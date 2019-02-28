@@ -58,7 +58,7 @@ TEST(GPUBFCAllocatorTest, NoDups) {
   std::vector<void*> ptrs;
   for (int s = 1; s < 1024; s++) {
     void* raw = a.AllocateRaw(1, s);
-    ptrs.push_back(raw);
+    ptrs.emplace_back(raw);
   }
   CheckStats(&a, 1023, 654336, 654336, 1024);
 
@@ -74,7 +74,8 @@ TEST(GPUBFCAllocatorTest, NoDups) {
   }
 
   for (size_t i = 0; i < ptrs.size(); i++) {
-    a.DeallocateRaw(ptrs[i]);
+    size_t req_size = a.RequestedSize(ptrs[i]);
+    a.DeallocateRaw(ptrs[i], req_size);
   }
   CheckStats(&a, 1023, 0, 654336, 1024);
 }
@@ -103,7 +104,8 @@ TEST(GPUBFCAllocatorTest, AllocationsAndDeallocations) {
   std::vector<void*> existing_ptrs;
   for (size_t i = 0; i < initial_ptrs.size(); i++) {
     if (i % 2 == 1) {
-      a.DeallocateRaw(initial_ptrs[i]);
+      size_t req_size = a.RequestedSize(ptrs[i]);
+      a.DeallocateRaw(initial_ptrs[i], req_size);
     } else {
       existing_ptrs.push_back(initial_ptrs[i]);
     }
@@ -137,7 +139,8 @@ TEST(GPUBFCAllocatorTest, AllocationsAndDeallocations) {
   }
 
   for (size_t i = 0; i < existing_ptrs.size(); i++) {
-    a.DeallocateRaw(existing_ptrs[i]);
+    size_t req_size = a.RequestedSize(existing_ptrs[i]);
+    a.DeallocateRaw(existing_ptrs[i], req_size);
   }
 }
 
@@ -150,7 +153,7 @@ TEST(GPUBFCAllocatorTest, ExerciseCoalescing) {
   CheckStats(&a, 0, 0, 0, 0);
 
   float* first_ptr = a.Allocate<float>(1024);
-  a.DeallocateRaw(first_ptr);
+  a.DeallocateRaw(first_ptr, sizeof(float)*1024);
   CheckStats(&a, 1, 0, 4096, 4096);
   for (int i = 0; i < 1024; ++i) {
     // Allocate several buffers of different sizes, and then clean them
@@ -162,10 +165,10 @@ TEST(GPUBFCAllocatorTest, ExerciseCoalescing) {
     double* t3 = a.Allocate<double>(2048);
     float* t4 = a.Allocate<float>(10485760);
 
-    a.DeallocateRaw(t1);
-    a.DeallocateRaw(t2);
-    a.DeallocateRaw(t3);
-    a.DeallocateRaw(t4);
+    a.DeallocateRaw(t1, sizeof(float)*1024);
+    a.DeallocateRaw(t2, sizeof(int64)*1048576);
+    a.DeallocateRaw(t3, sizeof(double)*2048);
+    a.DeallocateRaw(t4, sizeof(float)*10485760);
   }
   CheckStats(&a, 4097, 0,
              1024 * sizeof(float) + 1048576 * sizeof(int64) +
@@ -177,7 +180,7 @@ TEST(GPUBFCAllocatorTest, ExerciseCoalescing) {
   // starts from this region.
   float* first_ptr_after = a.Allocate<float>(1024);
   EXPECT_EQ(first_ptr, first_ptr_after);
-  a.DeallocateRaw(first_ptr_after);
+  a.DeallocateRaw(first_ptr_after, sizeof(float)*1024);
 }
 
 TEST(GPUBFCAllocatorTest, AllocateZeroBufSize) {
@@ -208,7 +211,7 @@ TEST(GPUBFCAllocatorTest, AllocatedVsRequested) {
   float* t1 = a.Allocate<float>(1);
   EXPECT_EQ(4, a.RequestedSize(t1));
   EXPECT_EQ(256, a.AllocatedSize(t1));
-  a.DeallocateRaw(t1);
+  a.DeallocateRaw(t1, sizeof(float));
 }
 
 TEST(GPUBFCAllocatorTest, TestCustomMemoryLimit) {
@@ -224,7 +227,7 @@ TEST(GPUBFCAllocatorTest, TestCustomMemoryLimit) {
 
   EXPECT_NE(nullptr, first_ptr);
   EXPECT_EQ(nullptr, second_ptr);
-  a.DeallocateRaw(first_ptr);
+  a.DeallocateRaw(first_ptr, sizeof(float) * (1 << 6));
 }
 
 TEST(GPUBFCAllocatorTest, AllocationsAndDeallocationsWithGrowth) {
@@ -258,7 +261,8 @@ TEST(GPUBFCAllocatorTest, AllocationsAndDeallocationsWithGrowth) {
   std::vector<void*> existing_ptrs;
   for (size_t i = 0; i < initial_ptrs.size(); i++) {
     if (i % 2 == 1) {
-      a.DeallocateRaw(initial_ptrs[i]);
+      size_t req_size = a.RequestedSize(initial_ptrs[i]);
+      a.DeallocateRaw(initial_ptrs[i], req_size);
     } else {
       existing_ptrs.push_back(initial_ptrs[i]);
     }
@@ -288,7 +292,8 @@ TEST(GPUBFCAllocatorTest, AllocationsAndDeallocationsWithGrowth) {
   }
 
   for (size_t i = 0; i < existing_ptrs.size(); i++) {
-    a.DeallocateRaw(existing_ptrs[i]);
+    size_t req_size = a.RequestedSize(existing_ptrs[i]);
+    a.DeallocateRaw(existing_ptrs[i], req_size);
   }
 
   AllocatorStats stats;
@@ -308,8 +313,8 @@ TEST(GPUBFCAllocatorTest, DISABLED_AllocatorReceivesZeroMemory) {
   GPUBFCAllocator b(sub_allocator, 1UL << 60, "GPU_0_bfc");
   void* amem = a.AllocateRaw(1, 1);
   void* bmem = b.AllocateRaw(1, 1 << 30);
-  a.DeallocateRaw(amem);
-  b.DeallocateRaw(bmem);
+  a.DeallocateRaw(amem, 1);
+  b.DeallocateRaw(bmem, 1 << 30);
 }
 
 static void BM_Allocation(int iters) {
@@ -327,7 +332,7 @@ static void BM_Allocation(int iters) {
   while (--iters > 0) {
     size_t bytes = sizes[size_index++ % sizes.size()];
     void* p = a.AllocateRaw(1, bytes);
-    a.DeallocateRaw(p);
+    a.DeallocateRaw(p, bytes);
   }
 }
 BENCHMARK(BM_Allocation);
@@ -353,7 +358,7 @@ static void BM_AllocationThreaded(int iters, int num_threads) {
       for (int i = 0; i < iters; i++) {
         int bytes = sizes[size_index++ % sizes.size()];
         void* p = a.AllocateRaw(1, bytes);
-        a.DeallocateRaw(p);
+        a.DeallocateRaw(p, bytes);
         if (count.fetch_sub(1) == 1) {
           mutex_lock l(done_lock);
           done_flag = true;
@@ -390,7 +395,8 @@ static void BM_AllocationDelayed(int iters, int delay) {
   int pindex = 0;
   while (--iters > 0) {
     if (ptrs[pindex] != nullptr) {
-      a.DeallocateRaw(ptrs[pindex]);
+      auto req_size = a.RequestedSize(ptrs[pindex]);
+      a.DeallocateRaw(ptrs[pindex], req_size);
       ptrs[pindex] = nullptr;
     }
     int bytes = sizes[size_index++ % sizes.size()];
@@ -400,7 +406,8 @@ static void BM_AllocationDelayed(int iters, int delay) {
   }
   for (int i = 0; i < ptrs.size(); i++) {
     if (ptrs[i] != nullptr) {
-      a.DeallocateRaw(ptrs[i]);
+      auto req_size = a.RequestedSize(ptrs[i]);
+      a.DeallocateRaw(ptrs[i], req_size);
     }
   }
 }
@@ -469,7 +476,8 @@ class GPUBFCAllocatorPrivateMethodsTest : public ::testing::Test {
     }
 
     for (size_t i = 1; i < initial_ptrs.size(); i += 2) {
-      a.DeallocateRaw(initial_ptrs[i]);
+      auto req_size = a.RequestedSize(initial_ptrs[i]);
+      a.DeallocateRaw(initial_ptrs[i], req_size);
       initial_ptrs[i] = nullptr;
     }
     {

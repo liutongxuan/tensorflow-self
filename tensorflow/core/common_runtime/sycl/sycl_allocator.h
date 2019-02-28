@@ -33,7 +33,7 @@ class SYCLAllocator : public Allocator {
   virtual ~SYCLAllocator() override;
   string Name() override;
   void* AllocateRaw(size_t alignment, size_t num_bytes) override;
-  void DeallocateRaw(void* ptr) override;
+  void DeallocateRaw(void* ptr, size_t num_bytes) override;
 
   virtual bool ShouldAllocateEmptyTensors() override final { return true; }
   void Synchronize() {

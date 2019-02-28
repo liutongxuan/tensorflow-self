@@ -131,7 +131,7 @@ EventMgr::~EventMgr() {
                                          ue->bufrec.step_id, ue->bufrec.buf,
                                          ue->bufrec.alloc, false);
       }
-      ue->bufrec.alloc->DeallocateRaw(ue->bufrec.buf);
+      ue->bufrec.alloc->DeallocateRaw(ue->bufrec.buf, 0);
     }
     if (ue->func != nullptr) threadpool_.Schedule(ue->func);
     used_events_.pop_front();

@@ -45,6 +45,7 @@ class MklSubAllocator : public BasicCPUAllocator {
   ~MklSubAllocator() override {}
 };
 
+static bool mkl_allocator_collect_stats = false;
 // CPU allocator that handles small-size allocations by calling
 // suballocator directly. Mostly, it is just a wrapper around a suballocator
 // (that calls malloc and free directly) with support for bookkeeping.
@@ -63,40 +64,25 @@ class MklSmallSizeAllocator : public Allocator {
 
   void* AllocateRaw(size_t alignment, size_t num_bytes) override {
     void* ptr = sub_allocator_->Alloc(alignment, num_bytes);
-    if (ptr != nullptr) {
-      std::pair<void*, size_t> map_val(ptr, num_bytes);
+    if (mkl_allocator_collect_stats) {
       mutex_lock l(mutex_);
-      // Check that insertion in the hash map was successful.
-      CHECK(map_.insert(map_val).second);
       // Increment statistics for small-size allocations.
       IncrementStats(num_bytes);
     }
     return ptr;
   }
 
-  void DeallocateRaw(void* ptr) override {
+  void DeallocateRaw(void* ptr, size_t num_bytes) override {
     if (ptr == nullptr) {
       LOG(ERROR) << "tried to deallocate nullptr";
       return;
     }
 
-    mutex_lock l(mutex_);
-    auto map_iter = map_.find(ptr);
-    if (map_iter != map_.end()) {
-      // Call free visitors.
-      size_t dealloc_bytes = map_iter->second;
-      sub_allocator_->Free(ptr, dealloc_bytes);
+    sub_allocator_->Free(ptr, num_bytes);
+    if (mkl_allocator_collect_stats) {
+      mutex_lock l(mutex_);
       DecrementStats(dealloc_bytes);
-      map_.erase(map_iter);
-    } else {
-      LOG(ERROR) << "tried to deallocate invalid pointer";
-      return;
     }
-  }
-
-  inline bool IsSmallSizeAllocation(const void* ptr) const {
-    mutex_lock l(mutex_);
-    return map_.find(ptr) != map_.end();
   }
 
   void GetStats(AllocatorStats* stats) override {
@@ -226,14 +212,12 @@ class MklCPUAllocator : public Allocator {
                : large_size_allocator_->AllocateRaw(alignment, num_bytes);
   }
 
-  inline void DeallocateRaw(void* ptr) override {
+  inline void DeallocateRaw(void* ptr, size_t num_bytes) override {
     // Check if ptr is for "small" allocation. If it is, then call Free
     // directly. Otherwise, call BFC to handle free.
-    if (small_size_allocator_->IsSmallSizeAllocation(ptr)) {
-      small_size_allocator_->DeallocateRaw(ptr);
-    } else {
-      large_size_allocator_->DeallocateRaw(ptr);
-    }
+    return (num_bytes < kSmallAllocationsThreshold)
+               ? small_size_allocator_->DeallocateRaw(ptr, num_bytes)
+               : large_size_allocator_->DeallocateRaw(ptr, num_bytes);
   }
 
   void GetStats(AllocatorStats* stats) override {
@@ -269,7 +253,7 @@ class MklCPUAllocator : public Allocator {
 
   static inline void FreeHook(void* ptr) {
     VLOG(3) << "MklCPUAllocator: In FreeHook";
-    cpu_allocator()->DeallocateRaw(ptr);
+    cpu_allocator()->DeallocateRaw(ptr, 0);
   }
 
   static inline void* CallocHook(size_t num, size_t size) {

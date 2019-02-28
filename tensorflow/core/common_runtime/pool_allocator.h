@@ -61,7 +61,7 @@ class PoolAllocator : public Allocator {
 
   void* AllocateRaw(size_t alignment, size_t num_bytes) override;
 
-  void DeallocateRaw(void* ptr) override;
+  void DeallocateRaw(void* ptr, size_t) override;
 
   // Allocate an unused memory region of size "num_bytes".  Fetch from
   // the pool if available, otherwise call allocator_.

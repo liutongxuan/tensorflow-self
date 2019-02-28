@@ -132,7 +132,7 @@ void* PoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   }
 }
 
-void PoolAllocator::DeallocateRaw(void* ptr) {
+void PoolAllocator::DeallocateRaw(void* ptr, size_t) {
   if (ptr == nullptr) return;
   ChunkPrefix* cp = FindPrefix(ptr);
   CHECK_LE((void*)cp, (void*)ptr);

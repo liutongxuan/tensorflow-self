@@ -54,7 +54,7 @@ TEST(GPUDebugAllocatorTest, OverwriteDetection_None) {
     EXPECT_TRUE(a.CheckFooter(gpu_array));
 
     // Confirm no error on free.
-    a.DeallocateRaw(gpu_array);
+    a.DeallocateRaw(gpu_array, sizeof(int64) * cpu_array.size());
   }
 }
 
@@ -88,7 +88,7 @@ TEST(GPUDebugAllocatorTest, OverwriteDetection_Header) {
               stream_exec->SynchronousMemcpy(&gpu_hdr_ptr, &pi, sizeof(float)));
 
           // Expect error on free.
-          a.DeallocateRaw(gpu_array);
+          a.DeallocateRaw(gpu_array, sizeof(int64) * cpu_array.size());
         },
         "");
   }
@@ -124,7 +124,7 @@ TEST(GPUDebugAllocatorTest, OverwriteDetection_Footer) {
               stream_exec->SynchronousMemcpy(&gpu_ftr_ptr, &pi, sizeof(float)));
 
           // Expect error on free.
-          a.DeallocateRaw(gpu_array);
+          a.DeallocateRaw(gpu_array, sizeof(int64) * cpu_array.size());
         },
         "");
   }
@@ -163,7 +163,7 @@ TEST(GPUDebugAllocatorTest, ResetToNan) {
   ASSERT_EQ(1.0, cpu_array_result[0]);
 
   // Free the array
-  a.DeallocateRaw(gpu_array);
+  a.DeallocateRaw(gpu_array, sizeof(float) * cpu_array.size());
 
   // All values should be reset to nan.
   ASSERT_TRUE(
@@ -210,7 +210,7 @@ TEST(GPUDebugAllocatorTest, ResetToNanWithHeaderFooter) {
   ASSERT_EQ(1.0, cpu_array_result[0]);
 
   // Free the array
-  a.DeallocateRaw(gpu_array);
+  a.DeallocateRaw(gpu_array, sizeof(float) * cpu_array.size());
 
   // All values should be reset to nan.
   ASSERT_TRUE(
@@ -243,7 +243,7 @@ TEST(GPUDebugAllocatorTest, AllocatedVsRequested) {
   float* t1 = a.Allocate<float>(1);
   EXPECT_EQ(4, a.RequestedSize(t1));
   EXPECT_EQ(256, a.AllocatedSize(t1));
-  a.DeallocateRaw(t1);
+  a.DeallocateRaw(t1, sizeof(float));
 }
 
 }  // namespace

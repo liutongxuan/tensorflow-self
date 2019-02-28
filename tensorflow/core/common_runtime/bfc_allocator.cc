@@ -363,7 +363,7 @@ void BFCAllocator::SplitChunk(BFCAllocator::ChunkHandle h, size_t num_bytes) {
   InsertFreeChunkIntoBin(h_new_chunk);
 }
 
-void BFCAllocator::DeallocateRaw(void* ptr) {
+void BFCAllocator::DeallocateRaw(void* ptr, size_t) {
   DeallocateRawInternal(ptr);
   retry_helper_.NotifyDealloc();
 }

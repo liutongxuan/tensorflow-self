@@ -30,7 +30,7 @@ void* GpuManagedAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   return ptr;
 }
 
-void GpuManagedAllocator::DeallocateRaw(void* ptr) {
+void GpuManagedAllocator::DeallocateRaw(void* ptr, size_t num_bytes) {
 #ifdef GOOGLE_CUDA
   CHECK_EQ(cudaFree(ptr), cudaSuccess);
 #endif

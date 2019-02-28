@@ -182,7 +182,7 @@ void deallocate_buffer(void* data, size_t len, void* arg) {
         tensorflow::LogMemory::EXTERNAL_TENSOR_ALLOCATION_STEP_ID, data,
         tensorflow::cpu_allocator(), false);
   }
-  tensorflow::cpu_allocator()->DeallocateRaw(data);
+  tensorflow::cpu_allocator()->DeallocateRaw(data, len);
 }
 
 }  // namespace

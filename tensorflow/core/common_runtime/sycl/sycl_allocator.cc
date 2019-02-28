@@ -56,7 +56,7 @@ void* SYCLAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   return p;
 }
 
-void SYCLAllocator::DeallocateRaw(void* ptr) {
+void SYCLAllocator::DeallocateRaw(void* ptr, size_t num_bytes) {
   mutex_lock lock(mu_);
   if (sycl_device_) {
     const auto& buffer_to_delete = sycl_device_->get_sycl_buffer(ptr);

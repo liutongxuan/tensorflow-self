@@ -121,11 +121,11 @@ class RecordingAllocator : public Allocator {
     (*mm_)[p] = md_;
     return p;
   }
-  void DeallocateRaw(void* p) override {
+  void DeallocateRaw(void* p, size_t num_bytes) override {
     mutex_lock l(*mu_);
     auto iter = mm_->find(p);
     mm_->erase(iter);
-    a_->DeallocateRaw(p);
+    a_->DeallocateRaw(p, num_bytes);
   }
   bool TracksAllocationSizes() override { return a_->TracksAllocationSizes(); }
   size_t RequestedSize(const void* p) override { return a_->RequestedSize(p); }

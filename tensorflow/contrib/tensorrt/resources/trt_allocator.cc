@@ -86,7 +86,7 @@ void* TRTDeviceAllocator::allocate(uint64_t size, uint64_t alignment,
   void* alloc_mem = mem;
   QCHECK(Align(alignment, size, mem, total_size));
   if (mem != alloc_mem) {
-    QCHECK(mem_map_.insert({mem, alloc_mem}).second);
+    QCHECK(mem_map_.insert({mem, {alloc_mem, total_size}}).second);
   }
   VLOG(2) << "Allocated " << total_size << " bytes memory @" << alloc_mem
           << "; aligned to " << size << " bytes @" << mem << " with alignment "
@@ -104,11 +104,13 @@ void TRTDeviceAllocator::free(void* memory) {
   // allocated memory adjusted for alignment, restore the original pointer
   if (memory) {
     auto alloc_mem = mem_map_.find(memory);
+    auto alloc_size = 0;
     if (alloc_mem != mem_map_.end()) {
-      memory = alloc_mem->second;
+      memory = alloc_mem->second.alloc_mem;
+      alloc_size = alloc_mem->second.alloc_size;
       mem_map_.erase(alloc_mem->first);
     }
-    allocator_->DeallocateRaw(memory);
+    allocator_->DeallocateRaw(memory, alloc_size);
   }
 }
 

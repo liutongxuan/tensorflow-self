@@ -172,7 +172,8 @@ class EigenGpuStreamDevice : public ::Eigen::StreamInterface {
       LogMemory::RecordRawDeallocation(data->operation_, data->step_id_,
                                        data->address_, data->allocator_, false);
     }
-    data->allocator_->DeallocateRaw(data->address_);
+    // num_bytes=0
+    data->allocator_->DeallocateRaw(data->address_, 0);
     delete data;
   }
 
@@ -280,7 +281,10 @@ BaseGPUDevice::BaseGPUDevice(const SessionOptions& options, const string& name,
 
 BaseGPUDevice::~BaseGPUDevice() {
   delete gpu_device_info_;
-  for (auto sb : scratch_) gpu_allocator_->DeallocateRaw(sb);
+  for (auto sb : scratch_) {
+    // num_bytes=0
+    gpu_allocator_->DeallocateRaw(sb, 0);
+  }
   for (auto ctx : device_contexts_) ctx->Unref();
 }
 

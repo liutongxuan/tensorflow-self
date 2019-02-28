@@ -44,7 +44,7 @@ void* XlaDeviceAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   return XlaTensor::ToOpaquePointer(new XlaTensor());
 }
 
-void XlaDeviceAllocator::DeallocateRaw(void* ptr) {
+void XlaDeviceAllocator::DeallocateRaw(void* ptr, size_t) {
   delete XlaTensor::FromOpaquePointer(ptr);
 }
 

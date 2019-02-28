@@ -48,7 +48,7 @@ class FakeAllocator {
         millis_to_wait_, alignment, num_bytes);
   }
 
-  void DeallocateRaw(void* ptr) {
+  void DeallocateRaw(void* ptr, size_t num_bytes) {
     mutex_lock l(mu_);
     ++memory_capacity_;
     retry_.NotifyDealloc();
@@ -141,7 +141,7 @@ class GPUAllocatorRetryTest : public ::testing::Test {
               ++consumer_count_[i];
               for (int j = 0; j < cap_needed; ++j) {
                 barrier_->WaitTurn(i);
-                alloc_->DeallocateRaw(ptr);
+                alloc_->DeallocateRaw(ptr, 0);
               }
             } while (!notifier_.HasBeenNotified());
             barrier_->Done(i);

@@ -72,7 +72,7 @@ void* TrackingAllocator::AllocateRaw(
   return ptr;
 }
 
-void TrackingAllocator::DeallocateRaw(void* ptr) {
+void TrackingAllocator::DeallocateRaw(void* ptr, size_t num_bytes) {
   // freeing a null ptr is a no-op
   if (nullptr == ptr) {
     return;
@@ -103,7 +103,7 @@ void TrackingAllocator::DeallocateRaw(void* ptr) {
     }
     should_delete = UnRef();
   }
-  allocator->DeallocateRaw(ptr);
+  allocator->DeallocateRaw(ptr, num_bytes);
   if (should_delete) {
     delete this;
   }
