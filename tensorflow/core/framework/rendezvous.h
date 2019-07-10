@@ -72,6 +72,7 @@ class Rendezvous : public core::RefCounted {
 
     ParsedKey& operator=(const ParsedKey& b);
     StringPiece FullKey() const { return buf_; }
+    string* raw() {return &buf_; }
 
    private:
     friend class Rendezvous;
@@ -105,8 +106,29 @@ class Rendezvous : public core::RefCounted {
                              const Tensor&, const bool)>
       DoneCallback;
 
+  typedef std::function<void(const Status &,
+                             const std::vector<Args> &,
+                             const Args&,
+                             const std::vector<Tensor>&,
+                             const std::vector<bool>& )>
+      FuseDoneCallback;
+
   virtual void RecvAsync(const ParsedKey& key, const Args& args,
                          DoneCallback done) = 0;
+
+  virtual void FuseRecvAsync(const std::vector<ParsedKey> &parsed_keys,
+                             const Rendezvous::Args &recv_args,
+                             FuseDoneCallback done) {
+    Status s(::tensorflow::errors::Unimplemented(
+        "FuseRecvAsync is not implemented for this rendezvous."));
+    CHECK(false) << "FuseRecvFromRemoteAsync Unimplemented";
+
+    int fuse_count = parsed_keys.size();
+    done(s, std::vector<Args>(fuse_count),
+         recv_args,
+         std::vector<Tensor>(fuse_count),
+         std::vector<bool>(fuse_count, false));
+  };
 
   // Synchronous wrapper for RecvAsync.
   Status Recv(const ParsedKey& key, const Args& args, Tensor* val,

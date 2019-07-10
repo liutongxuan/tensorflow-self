@@ -24,13 +24,15 @@ public:
   // |ID:8B|tag_id:8B|method:4B|status:2B|err_msg_len:2B|body_len:8B|err_msg...|
   static const uint64_t HEADER_SIZE = 32;
 
+  static const char * HEADER_SIGN;
+
   SeastarServerTag(seastar::channel* seastar_channel,
                    SeastarWorkerService* seastar_worker_service);
 
   virtual ~SeastarServerTag();
 
   // Called by seastar engine, call the handler.
-  void RecvReqDone(Status s);
+  void RecvReqDone(const Status& s);
 
   // Called by seastar engine.
   void SendRespDone();
@@ -44,11 +46,22 @@ public:
   void StartResp();
 
   void StartRespWithTensor();
+  void StartRespWithFuseTensor();
+
+
+  //fuse
+  void InitResponseTensorBufs(int resp_tensor_count);
+  Status ParseMessage(int idx, const char* tensor_msg, size_t len);
+  Status ParseTensor();
+
+  bool IsRecvTensor();
+  bool IsFuseRecvTensor();
 
 private:
   seastar::user_packet* ToUserPacket();
 
   seastar::user_packet* ToUserPacketWithTensor();
+  std::vector<seastar::user_packet*> ToUserPacketWithFuseTensors();
 
 public:
   SeastarBuf req_body_buf_;
@@ -67,6 +80,13 @@ public:
   StatusCallback clear_;
   int16_t status_;
   SeastarWorkerService* seastar_worker_service_;
+
+  int64 tag_write_start_micros;
+
+  //fuse
+  int resp_tensor_count_;
+  std::vector<SeastarBuf> resp_message_bufs_;
+  std::vector<SeastarBuf> resp_tensor_bufs_;
 };
 
 void InitSeastarServerTag(protobuf::Message* request,
@@ -75,6 +95,11 @@ void InitSeastarServerTag(protobuf::Message* request,
 void InitSeastarServerTag(protobuf::Message* request,
                           SeastarTensorResponse* response,
                           SeastarServerTag* tag, StatusCallback clear);
+
+void InitSeastarServerTag(protobuf::Message* request,
+                          SeastarFuseTensorResponse* response,
+                          SeastarServerTag* tag,
+                          StatusCallback clear);
 
 }  // namespace tensorflow
 

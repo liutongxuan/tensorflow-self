@@ -46,6 +46,11 @@ class GrpcWorker : public Worker {
                                    ::grpc::ByteBuffer* response,
                                    StatusCallback done);
 
+  virtual void GrpcFuseRecvTensorAsync(CallOptions* opts,
+      const FuseRecvTensorRequest* request,
+      ::grpc::ByteBuffer* response,
+      StatusCallback done);
+
   void LoggingAsync(const LoggingRequest* request, LoggingResponse* response,
                     StatusCallback done) override;
 
@@ -65,6 +70,7 @@ class GrpcWorker : public Worker {
  private:
   std::unique_ptr<GrpcResponseCache> response_cache_;
   const int32 recv_buf_max_chunk_;
+  RecentRequestIds recv_tensor_recent_request_ids_;
 };
 
 std::unique_ptr<GrpcWorker> NewGrpcWorker(WorkerEnv* worker_env,

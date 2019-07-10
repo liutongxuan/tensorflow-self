@@ -63,6 +63,8 @@ class CallOptions {
   // Get and set operation timeout. Timeout value is in milliseconds.
   int64 GetTimeout();
   void SetTimeout(int64 ms);
+  string GetRpcTarget();
+  void SetRpcTarget(const string& target);
 
  private:
   mutex mu_;
@@ -70,6 +72,7 @@ class CallOptions {
 
   // RPC operation timeout in milliseconds.
   int64 timeout_in_ms_ GUARDED_BY(mu_);
+  string rpc_target_;
 
   TF_DISALLOW_COPY_AND_ASSIGN(CallOptions);
 };

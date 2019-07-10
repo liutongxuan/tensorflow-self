@@ -16,7 +16,10 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_TENSOR_CODING_H_
 #define TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_TENSOR_CODING_H_
 
+#include <vector>
+#include "grpc++/support/slice.h"
 #include "grpcpp/impl/codegen/byte_buffer.h"
+#include "tensorflow/core/platform/default/integral_types.h"
 
 namespace tensorflow {
 class Tensor;
@@ -48,6 +51,10 @@ void EncodeRecvTensorResponseToByteBuffer(const RecvTensorResponse& proto,
 // Discards original contents of *result.
 void EncodeTensorToByteBuffer(bool is_dead, const Tensor& val, bool require_ack,
                               ::grpc::ByteBuffer* result);
+
+void EncodeTensorToByteBuffer(bool is_dead, const Tensor& val,
+                              std::vector<std::vector<::grpc::Slice> >* slices,
+                              int idx, uint64_t fuse_count, int64 now_micors);
 
 }  // namespace grpc
 }  // namespace tensorflow

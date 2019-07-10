@@ -106,6 +106,59 @@ class TensorResponse {
   RecvTensorResponse meta_;
 };
 
+// Response buffer for fuse recv
+class FuseTensorResponse {
+ public:
+  FuseTensorResponse() : fuse_count_(0) {}
+  virtual ~FuseTensorResponse() {}
+
+  void InitAlloc(DeviceBase *d, const AllocatorAttributes &aa);
+  void Init(int fuse_count) {
+    fuse_count_ = fuse_count;
+    tensors_.resize(fuse_count_);
+    is_deads_.resize(fuse_count_, false);
+  }
+
+  Status ParseFrom(::tensorflow::protobuf::io::ZeroCopyInputStream *);
+
+  int GetFuseCount() { return fuse_count_; }
+  void SetIsDeadByIndex(int idx, bool is_dead) { is_deads_[idx] = is_dead; }
+  bool GetIsDeadByIndex(int idx) const { return is_deads_[idx]; }
+  const std::vector<bool> &GetIsDeads() const { return is_deads_; }
+  void SetTensorByIndex(int idx, const Tensor &tensor) {
+    tensors_[idx] = tensor;
+  }
+  const Tensor &GetTensorByIndex(int idx) const { return tensors_[idx]; }
+  const std::vector<Tensor> &GetTensors() const { return tensors_; }
+  const int64 SendStartTime() const { return send_start_micros_; }
+  void Clear();
+  size_t GetTotalBytes(){
+    size_t total_bytes = 0;
+    for (const auto &each : tensors_){
+      total_bytes += each.TotalBytes();
+    }
+    return total_bytes;
+  }
+
+ private:
+  bool ParseFast(protobuf::io::CodedInputStream &input,
+                 int tensor_idx);
+  bool ParseTensorSubmessage(
+      protobuf::io::CodedInputStream *input,
+      TensorProto *tensor_meta,
+      int tensor_idx);
+
+ private:
+  int fuse_count_;
+  std::vector<Tensor> tensors_;
+  std::vector<bool> is_deads_;
+  bool on_host_ = false;
+  DeviceBase *device_ = nullptr;
+  AllocatorAttributes alloc_attrs_;
+  Allocator *allocator_ = nullptr;
+  int64 send_start_micros_;
+};
+
 }  // namespace tensorflow
 
 #endif  // TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_TENSOR_CODING_H_

@@ -37,6 +37,19 @@ package(default_visibility = [
 ])
 
 cc_library(
+    name = "grpc_worker_interface",
+    hdrs = [
+        "grpc_worker_interface.h",
+    ],
+    deps = [
+        "//tensorflow/core/distributed_runtime:call_options",
+        "//tensorflow/core/distributed_runtime:message_wrappers",
+        "//tensorflow/core/distributed_runtime:tensor_coding",
+        "//tensorflow/core:worker_proto_cc",
+    ],
+)
+
+cc_library(
     name = "grpc_util",
     srcs = ["grpc_util.cc"],
     hdrs = ["grpc_util.h"],
@@ -80,6 +93,7 @@ cc_library(
     srcs = ["grpc_remote_worker.cc"],
     hdrs = ["grpc_remote_worker.h"],
     deps = [
+        ":grpc_worker_interface",
         ":grpc_client_cq_tag",
         ":grpc_state",
         ":grpc_util",
@@ -262,6 +276,7 @@ cc_library(
     srcs = ["rpc_rendezvous_mgr.cc"],
     hdrs = ["rpc_rendezvous_mgr.h"],
     deps = [
+        ":grpc_worker_interface",
         "//tensorflow/core:core_cpu_internal",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",

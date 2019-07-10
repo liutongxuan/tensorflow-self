@@ -51,4 +51,12 @@ void CallOptions::SetTimeout(int64 ms) {
   timeout_in_ms_ = ms;
 }
 
+string CallOptions::GetRpcTarget() {
+  return rpc_target_;
+}
+
+void CallOptions::SetRpcTarget(const std::string &target) {
+  rpc_target_ = target;
+}
+
 }  // end namespace tensorflow

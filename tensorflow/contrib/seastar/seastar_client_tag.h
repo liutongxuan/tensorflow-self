@@ -17,6 +17,8 @@
 namespace tensorflow {
 
 typedef std::function<Status()> ParseMessageCallback;
+typedef std::function<Status()> ParseTensorCallback;
+typedef std::function<Status(int, const char*, size_t)> ParseFuseMessageCallback;
 
 class SeastarClientTag {
 public:
@@ -24,8 +26,13 @@ public:
   // |ID:8B|tag:8B|method:4B|reserve:4B|body_len:8B|
   static const uint64_t HEADER_SIZE = 32;
 
+  static const char * HEADER_SIGN;
+
   SeastarClientTag(tensorflow::SeastarWorkerServiceMethod method,
                    WorkerEnv* env);
+
+  SeastarClientTag(tensorflow::SeastarWorkerServiceMethod method,
+                   WorkerEnv* env, int req_tensor_count);
 
   virtual ~SeastarClientTag();
 
@@ -52,6 +59,15 @@ public:
 
   char* GetResponseTensorBuffer();
 
+  //fuse
+  bool IsFuseRecvTensor();
+  Status ParseFuseMessage(int idx, const char* tensor_msg, size_t len);
+  void HandleResponse(Status s);
+  void ScheduleProcess(std::function<void()> f);
+  uint64_t GetResponseTensorSize(int idx);
+  char* GetResponseTensorBuffer(int idx);
+  void InitTensorBuffers(int fuse_count);
+
 private:
   friend class SeastarTagFactory;
 
@@ -73,7 +89,14 @@ public:
   SeastarBuf resp_tensor_buf_;
   ParseMessageCallback parse_message_;
   CallOptions* call_opts_;
+
   int timeout_in_ms_;
+  int64 tag_read_start_micros;
+
+  //fuse
+  int req_tensor_count_;
+  std::vector<SeastarBuf> resp_tensor_bufs_;
+  ParseFuseMessageCallback parse_fuse_message_;
 };
 
 void InitSeastarClientTag(protobuf::Message* request,
@@ -83,6 +106,12 @@ void InitSeastarClientTag(protobuf::Message* request,
 void InitSeastarClientTag(protobuf::Message* request,
                           SeastarTensorResponse* response, StatusCallback done,
                           SeastarClientTag* tag, CallOptions* call_opts);
+
+void InitSeastarClientTag(protobuf::Message* request,
+                          SeastarFuseTensorResponse* response,
+                          StatusCallback done,
+                          SeastarClientTag* tag,
+                          CallOptions* call_opts);
 
 }  // namespace tensorflow
 

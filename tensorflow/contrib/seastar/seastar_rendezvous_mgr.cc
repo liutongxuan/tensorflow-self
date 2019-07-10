@@ -9,6 +9,7 @@
 #include "tensorflow/core/distributed_runtime/worker_interface.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/lib/monitoring/cat_reporter.h"
 #include "tensorflow/core/lib/strings/numbers.h"
 #include "tensorflow/core/lib/strings/str_util.h"
 #include "tensorflow/core/platform/logging.h"
@@ -28,6 +29,12 @@ protected:
   void RecvFromRemoteAsync(const Rendezvous::ParsedKey& parsed,
                            const Rendezvous::Args& args,
                            DoneCallback done) override;
+
+  void FuseRecvFromRemoteAsync(
+      const std::vector<Rendezvous::ParsedKey>& parsed_keys,
+      const Rendezvous::Args& args,
+      FuseDoneCallback done,
+      CallOptions* opts) override;
 
 private:
   ~SeastarRemoteRendezvous() override {}
@@ -96,7 +103,7 @@ public:
     return status_;
   }
 
-  const Tensor& tensor() const { return resp_.GetTensor(); }
+  Tensor& tensor() { return resp_.GetTensor(); }
 
   bool is_dead() const { return resp_.GetIsDead(); }
 
@@ -112,9 +119,7 @@ private:
     resp_.InitAlloc(dst_device_, alloc_attrs_);
     using namespace std::placeholders;
     StatusCallback cb = std::bind(
-        [this](std::function<void()> recv_done,
-            // Begin unbound arguments.
-               const Status& s) {
+        [this](const std::function<void()>& recv_done, const Status& s) {
           if (!s.ok()) {
             mutex_lock l(mu_);
             status_.Update(s);
@@ -122,6 +127,9 @@ private:
           recv_done();
         },
         std::move(recv_done), _1);
+    if (CAT_LOG_IS_ON(3)) {
+      req_.set_recv_req_start_micros(Env::Default()->NowMicros());
+    }
     seastar_wi_->RecvTensorAsync(&opts_, &req_, &resp_, std::move(cb));
   }
 
@@ -142,6 +150,123 @@ private:
   Status status_ GUARDED_BY(mu_);
 
   TF_DISALLOW_COPY_AND_ASSIGN(SeastarRecvTensorCall);
+};
+
+class SeastarFuseRecvTensorCall : public BaseRecvTensorCall {
+ public:
+  SeastarFuseRecvTensorCall() : wi_(nullptr), dst_device_(nullptr) {}
+
+  void Init(WorkerInterface* wi, int64 step_id,
+            const std::vector<Rendezvous::ParsedKey>& parsed_keys,
+            AllocatorAttributes alloc_attrs, Device* dst_device,
+            const Rendezvous::Args& recv_args,
+            Rendezvous::FuseDoneCallback done) {
+    wi_ = wi;
+    star_wi_ = dynamic_cast<SeastarWorkerInterface*>(wi_);
+    alloc_attrs_ = alloc_attrs;
+    dst_device_ = dst_device;
+    recv_args_ = recv_args;
+    fuse_done_ = std::move(done);
+    fuse_req_.set_step_id(step_id);
+    fuse_count_ = parsed_keys.size();
+    for (int i = 0; i < fuse_count_; ++i) {
+      StringPiece key = parsed_keys[i].FullKey();
+      fuse_req_.add_rendezvous_key(key.data(), key.size());
+    }
+  }
+
+  void Reset(WorkerCacheInterface* wc) {
+    wc->ReleaseWorker(src_worker_, wi_);
+    wi_ = nullptr;
+    star_wi_ = nullptr;
+    alloc_attrs_ = AllocatorAttributes();
+    dst_device_ = nullptr;
+    // We don't clear opts_ and assume that Init will set up the state for
+    // opts_ appropriately.
+    fuse_req_.Clear();
+    fuse_resp_.Clear();
+    {
+      mutex_lock l(mu_);
+      status_ = Status::OK();
+    }
+    fuse_done_ = nullptr;
+  }
+
+  ~SeastarFuseRecvTensorCall() override {
+    // Since only the SeastarRecvTensorFreeList will delete an
+    // SeastarRecvTensorCall, and it always sets this->wi_ to null when
+    // a call object is released to it, we can assert that this->wi_ is
+    // always null at the point of deletion.
+    CHECK_EQ(static_cast<WorkerInterface*>(nullptr), wi_)
+      << "Leaking WorkerInterface in SeastarRecvTensorCall destructor.";
+  }
+
+  void Start(std::function<void()> recv_done) override {
+    StartRTCall(std::move(recv_done));
+  }
+
+  void StartAbort(const Status& s) override {
+    {
+      mutex_lock l(mu_);
+      status_.Update(s);
+    }
+    opts_.StartCancel();
+  }
+
+  Status status() const override {
+    mutex_lock l(mu_);
+    return status_;
+  }
+
+  const std::vector<Tensor>& tensors() const { return fuse_resp_.GetTensors(); }
+  const std::vector<bool>& is_deads() const { return fuse_resp_.GetIsDeads(); }
+  const Rendezvous::Args& recv_args() const { return recv_args_; }
+  const Rendezvous::FuseDoneCallback& fuse_done() const { return fuse_done_; }
+
+ private:
+  friend class SeastarRemoteRendezvous;
+  // Start the main FuseRecvTensor call, checking for an async abort.
+  void StartRTCall(std::function<void()> recv_done) {
+    fuse_resp_.InitAlloc(dst_device_, alloc_attrs_);
+    using namespace std::placeholders;
+    StatusCallback cb = std::bind(
+        [this](const std::function<void()>& recv_done,
+            // Begin unbound arguments.
+               const Status& s) {
+          if (!s.ok()) {
+            mutex_lock l(mu_);
+            status_.Update(s);
+          }
+          recv_done();
+        },
+        std::move(recv_done), _1);
+
+    if (CAT_LOG_IS_ON(3)) {
+      fuse_req_.set_recv_req_start_micros(Env::Default()->NowMicros());
+    }
+    fuse_resp_.Init(fuse_count_);
+    star_wi_->FuseRecvTensorAsync(&opts_, &fuse_req_, &fuse_resp_,
+                                  std::move(cb));
+  }
+
+ private:
+  string src_worker_;
+  string src_rel_device_;
+  WorkerInterface* wi_;
+  SeastarWorkerInterface* star_wi_;
+  AllocatorAttributes alloc_attrs_;
+  Device* dst_device_;
+  CallOptions opts_;
+  Rendezvous::FuseDoneCallback fuse_done_;
+  int fuse_count_;
+  FuseRecvTensorRequest fuse_req_;
+  SeastarFuseTensorResponse fuse_resp_;
+  Rendezvous::Args recv_args_;
+
+  mutable mutex mu_;
+  Status status_ GUARDED_BY(mu_);
+
+  TF_DISALLOW_COPY_AND_ASSIGN(SeastarFuseRecvTensorCall);
 };
 
 class SeastarRecvTensorFreeList {
@@ -187,6 +312,51 @@ static SeastarRecvTensorFreeList* get_call_freelist() {
   static SeastarRecvTensorFreeList* call_freelist =
       new SeastarRecvTensorFreeList();
   return call_freelist;
+}
+
+class SeastarFuseRecvTensorFreeList {
+ public:
+  virtual ~SeastarFuseRecvTensorFreeList() {
+    for (size_t i = 0; i < objects_.size(); i++) {
+      delete objects_[i];
+    }
+  }
+
+  SeastarFuseRecvTensorCall* New() {
+    {
+      mutex_lock l(mu_);
+      if (!objects_.empty()) {
+        SeastarFuseRecvTensorCall* result = objects_.back();
+        objects_.pop_back();
+        return result;
+      }
+    }
+    return new SeastarFuseRecvTensorCall;
+  }
+
+  void Release(SeastarFuseRecvTensorCall* obj, WorkerCacheInterface* wc) {
+    obj->Reset(wc);
+    {
+      mutex_lock l(mu_);
+      if (objects_.size() < kMaxObjects) {
+        objects_.push_back(obj);
+        return;
+      }
+    }
+    delete obj;
+  }
+
+ private:
+  static const int kMaxObjects = 1000;
+
+  mutex mu_;
+  std::vector<SeastarFuseRecvTensorCall*> objects_ GUARDED_BY(mu_);
+};
+
+static SeastarFuseRecvTensorFreeList* get_fuse_call_freelist() {
+  static SeastarFuseRecvTensorFreeList* fuse_call_freelist =
+      new SeastarFuseRecvTensorFreeList();
+  return fuse_call_freelist;
 }
 
 void SeastarRemoteRendezvous::RecvFromRemoteAsync(
@@ -241,9 +411,32 @@ void SeastarRemoteRendezvous::RecvFromRemoteAsync(
     return;
   }
 
+  if(CAT_LOG_IS_ON(3) && recv_args.rendezvous_micros > 0) {
+    int64 duration = env_->env->NowMicros() - recv_args.rendezvous_micros;
+    CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
+                            "RecvComputeToReqStart", duration);
+  }
+
   // Start "call".
   Ref();
   call->Start([this, call]() {
+    int64 recv_done_micros = 0;
+    if (CAT_LOG_IS_ON(3)) {
+      int64 req_start_micros = call->req_.recv_req_start_micros();
+      int64 resp_start_micros = call->resp_.send_start_micros();
+      int64 current_micros = env_->env->NowMicros();
+      if (resp_start_micros > 0) {
+        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
+                                "RecvRespStartToRespDone",
+                                current_micros - resp_start_micros);
+      }
+      if (req_start_micros > 0) {
+        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
+                                "RecvReqStartToRespDone",
+                                current_micros - req_start_micros);
+      }
+      recv_done_micros = current_micros;
+    }
     // Removes "call" from active_. Prevent StartAbort().
     DeregisterCall(call);
     // If StartAbort was called prior to DeregisterCall, then the
@@ -254,8 +447,111 @@ void SeastarRemoteRendezvous::RecvFromRemoteAsync(
     call->wi_ = nullptr;
     get_call_freelist()->Release(call, session()->worker_cache.get());
     Unref();
+    CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace, "RespDoneToRecvDone",
+                            env_->env->NowMicros() - recv_done_micros);
   });
 }
+
+void SeastarRemoteRendezvous::FuseRecvFromRemoteAsync(
+    const std::vector<Rendezvous::ParsedKey>& parsed_keys,
+    const Rendezvous::Args& recv_args, FuseDoneCallback done,
+    CallOptions* opts) {
+  CHECK(is_initialized());
+  int fuse_count = parsed_keys.size();
+  Status s;
+
+  // Prepare a FuseRecvTensor call that can handle being aborted.
+  SeastarFuseRecvTensorCall* call = get_fuse_call_freelist()->New();
+
+  // key.src_device identifies a remote device.
+  if (!DeviceNameUtils::SplitDeviceName(parsed_keys[0].src_device,
+                                        &call->src_worker_,
+                                        &call->src_rel_device_)) {
+    s = errors::Internal(parsed_keys[0].src_device,
+                         " is invalid remote source device.");
+  }
+  WorkerSession* sess = session();
+  WorkerInterface* rwi = sess->worker_cache->CreateWorker(call->src_worker_);
+  if (s.ok() && rwi == nullptr) {
+    s = errors::Internal("No worker known as ", call->src_worker_);
+  }
+
+  Device* dst_device;
+  if (s.ok()) {
+    s = sess->device_mgr()->LookupDevice(parsed_keys[0].dst_device, &dst_device);
+  }
+  if (!s.ok()) {
+    if (rwi != nullptr) {
+      sess->worker_cache->ReleaseWorker(call->src_worker_, rwi);
+    }
+    get_fuse_call_freelist()->Release(call, sess->worker_cache.get());
+    done(s, std::vector<Args>(fuse_count), recv_args,
+         std::vector<Tensor>(fuse_count),
+         std::vector<bool>(fuse_count, false));
+    LOG(ERROR) << "FuseRecvFromRemoteAsync failed, detail " << s.error_message();
+    return;
+  }
+
+  call->Init(rwi, step_id_,
+             parsed_keys, recv_args.alloc_attrs, dst_device,
+             recv_args, std::move(done));
+
+  // Record "call" in active_ so that it can be aborted cleanly.
+  RegisterCall(call);
+  Ref();
+  if (!s.ok()) {
+    LOG(WARNING) << "Rendezvous has been aborted, ignore this rpc call. Abort rendezvous keys:";
+    for(const auto& each : parsed_keys){
+      LOG(WARNING) << each.FullKey();
+    }
+    call->fuse_done()(s, std::vector<Args>(fuse_count), recv_args,
+                      std::vector<Tensor>(fuse_count),
+                      std::vector<bool>(fuse_count, false));
+    session()->worker_cache->ReleaseWorker(call->src_worker_, call->wi_);
+    call->wi_ = nullptr;
+    get_fuse_call_freelist()->Release(call, session()->worker_cache.get());
+    Unref();
+    return;
+  }
+
+  // Start "call".
+  call->Start([this, call]() {
+    int64 recv_done_micros = 0;
+    if (CAT_LOG_IS_ON(3)) {
+      int64 req_start_micros = call->fuse_req_.recv_req_start_micros();
+      int64 resp_start_micros = call->fuse_resp_.send_start_micros();
+      int64 current_micros = env_->env->NowMicros();
+      if (resp_start_micros > 0) {
+        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
+                                "FuseRecvRespStartToRespDone",
+                                current_micros - resp_start_micros);
+      }
+      if (req_start_micros > 0) {
+        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
+                                "FuseRecvReqStartToRespDone",
+                                current_micros - req_start_micros);
+      }
+      recv_done_micros = current_micros;
+    }
+    // Removes "call" from active_. Prevent StartAbort().
+    DeregisterCall(call);
+    // If StartAbort was called prior to DeregisterCall, then the
+    // current status should be bad.
+    Status s = call->status();
+    call->fuse_done()(s,
+                      std::vector<Args>(call->fuse_count_),
+                      call->recv_args(),
+                      call->tensors(),
+                      call->is_deads());
+    session()->worker_cache->ReleaseWorker(call->src_worker_, call->wi_);
+    call->wi_ = nullptr;
+    get_fuse_call_freelist()->Release(call, session()->worker_cache.get());
+    Unref();
+    CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace, "FuseRespDoneToRecvDone",
+                            env_->env->NowMicros() - recv_done_micros);
+  });
+}
+
 }  // namespace
 
 SeastarRendezvousMgr::SeastarRendezvousMgr(const WorkerEnv* env)

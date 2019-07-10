@@ -82,6 +82,10 @@ class BaseRendezvousMgr : public RendezvousMgrInterface {
   Status RecvLocal(int64 step_id, const Rendezvous::ParsedKey& parsed,
                    Tensor* val, bool* is_dead) override;
 
+  void FuseRecvLocalAsync(int64 step_id,
+                          const std::vector<Rendezvous::ParsedKey>& parsed_keys,
+                          Rendezvous::FuseDoneCallback done) override ;
+
   // Removes rendezvous for "step_id".
   //
   // TODO(zhifengc): Have a background thread in worker that
@@ -149,10 +153,23 @@ class BaseRemoteRendezvous : public RemoteRendezvous {
   // REQUIRES: "parsed" is one that will be Saved into the local rendezvous.
   void RecvLocalAsync(const ParsedKey& parsed, DoneCallback done);
 
+  void FuseRecvAsync(const std::vector<ParsedKey> &parsed_keys,
+                     const Rendezvous::Args &recv_args,
+                     FuseDoneCallback done) override;
+
+  void FuseRecvLocalAsync(const std::vector<ParsedKey> &parsed_keys,
+                          FuseDoneCallback done);
+
  protected:
   virtual void RecvFromRemoteAsync(const Rendezvous::ParsedKey& parsed,
                                    const Rendezvous::Args& args,
                                    DoneCallback done) = 0;
+
+  virtual void FuseRecvFromRemoteAsync(
+      const std::vector<Rendezvous::ParsedKey>& parsed_keys,
+      const Rendezvous::Args& args,
+      FuseDoneCallback done,
+      CallOptions* opts = nullptr);
 
   // Returns true if "src" and "dst" are located in the same worker,
   // and hence may use a local rendezvous.
@@ -192,6 +209,14 @@ class BaseRemoteRendezvous : public RemoteRendezvous {
   };
   std::vector<DeferredCall> deferred_calls_ GUARDED_BY(mu_);
 
+  struct DeferredFuseCall {
+    const std::vector<ParsedKey> parsed_keys;
+    FuseDoneCallback done;
+    DeferredFuseCall(const std::vector<ParsedKey>& parsed_keys,
+        FuseDoneCallback done);
+  };
+  std::vector<DeferredFuseCall> deferred_fuse_calls_ GUARDED_BY(mu_);
+
   // Active outstanding RecvTensor calls.
   gtl::FlatSet<BaseRecvTensorCall*> active_ GUARDED_BY(mu_);
 
@@ -215,6 +240,9 @@ class BaseRemoteRendezvous : public RemoteRendezvous {
 
   // Must be called only if fully initialized.
   void RecvLocalAsyncInternal(const ParsedKey& parsed, DoneCallback done);
+
+  void FuseRecvLocalAsyncInternal(const std::vector<ParsedKey>& parsed_keys,
+      FuseDoneCallback done);
 
   TF_DISALLOW_COPY_AND_ASSIGN(BaseRemoteRendezvous);
 };

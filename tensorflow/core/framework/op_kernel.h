@@ -1225,6 +1225,7 @@ class OpKernelContext {
   void clear_recorded_memory() LOCKS_EXCLUDED(stats_mu_);
 
   bool input_is_ref(int index) const;
+  void all_output_dead(bool val){all_output_dead_ = val;}
 
   void set_record_memory_consumption(bool v) { record_memory_consumption_ = v; }
 
@@ -1296,6 +1297,8 @@ class OpKernelContext {
       temp_tensor_buffer_and_size_ GUARDED_BY(stats_mu_);
   std::unique_ptr<gtl::InlinedVector<int64, 2>> persistent_alloc_ids_
       GUARDED_BY(stats_mu_);
+  bool all_output_dead_ = false;
+
 
   TF_DISALLOW_COPY_AND_ASSIGN(OpKernelContext);
 };

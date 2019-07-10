@@ -10,7 +10,7 @@ namespace tensorflow {
 
 class SeastarClient {
 public:
-  void Connect(seastar::ipv4_addr server_addr, std::string s,
+  void Connect(seastar::ipv4_addr seastar_addr, const std::string& addr,
                seastar::channel* chan, SeastarTagFactory* tag_factory);
 
 private:
@@ -24,8 +24,16 @@ private:
     Connection(seastar::connected_socket&& fd, seastar::channel* chan,
                SeastarTagFactory* tag_factory, seastar::socket_address addr);
 
+    ~Connection();
+
     seastar::future<> Read();
+    seastar::future<> ReapeatReadTensors(SeastarClientTag* tag,
+                                         int* count,
+                                         int* cur_idx,
+                                         bool* error);
   };
+
+  static const uint64_t _8KB = 8192;
 };
 
 }  // namespace tensorflow

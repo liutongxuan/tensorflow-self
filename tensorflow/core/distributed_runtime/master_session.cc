@@ -430,6 +430,9 @@ Status MasterSession::ReffedClientGraph::DoBuildPartitions(
     sa.ComputeAsap(&popts.start_times);
   }
 
+  if (popts.use_fuserecv_partition) {
+    return PartitionWithFuse(popts, &client_graph->graph, out_partitions);
+  }
   // Partition the graph.
   return Partition(popts, &client_graph->graph, out_partitions);
 }
@@ -1635,6 +1638,11 @@ Status MasterSession::BuildAndRegisterPartitions(ReffedClientGraph* rcg) {
   if (session_opts_.config.graph_options().enable_recv_scheduling()) {
     popts.scheduling_for_recvs = true;
     popts.need_to_record_start_times = true;
+  }
+
+  if (session_opts_.config.graph_options().recv_type()
+      == GraphOptions::FuseRecv) {
+    popts.use_fuserecv_partition = true;
   }
 
   TF_RETURN_IF_ERROR(rcg->RegisterPartitions(std::move(popts)));

@@ -17,7 +17,7 @@ namespace tensorflow {
 class SeastarServerTag;
 
 class SeastarWorker : public Worker, public SeastarWorkerInterface {
-public:
+ public:
   typedef std::function<void(const Status&)> StatusCallback;
 
   explicit SeastarWorker(WorkerEnv* worker_env);
@@ -28,11 +28,16 @@ public:
   void RecvTensorAsync(CallOptions* opts, const RecvTensorRequest* request,
                        SeastarTensorResponse* response, StatusCallback done);
 
+  void FuseRecvTensorAsync(CallOptions* opts,
+                           const FuseRecvTensorRequest* request,
+                           SeastarFuseTensorResponse *response,
+                           StatusCallback done);
+
   WorkerEnv* env();
 };
 
 class SeastarWorkerService {
-public:
+ public:
   using HandleRequestFunction =
   void (SeastarWorkerService::*)(SeastarServerTag*);
 
@@ -64,6 +69,8 @@ public:
 
   void RecvTensorHandlerRaw(SeastarServerTag* tag);
 
+  void FuseRecvTensorHandlerRaw(SeastarServerTag* tag);
+
   void RecvBufHandler(SeastarServerTag* tag);
 
   void CompleteGroupHandler(SeastarServerTag* tag);
@@ -72,18 +79,18 @@ public:
 
   void GetStepSequenceHandler(SeastarServerTag* tag);
 
-private:
+ private:
   void Schedule(std::function<void()> f);
 
   struct EnumClassHash {
-    template <typename T>
+    template<typename T>
     std::size_t operator()(T t) const {
       return static_cast<std::size_t>(t);
     }
   };
 
-  std::unordered_map<SeastarWorkerServiceMethod, HandleRequestFunction, EnumClassHash>
-      handler_map_;
+  std::unordered_map<SeastarWorkerServiceMethod,
+                     HandleRequestFunction, EnumClassHash> handler_map_;
   SeastarWorker* worker_;
 };
 

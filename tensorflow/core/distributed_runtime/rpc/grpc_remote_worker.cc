@@ -36,12 +36,14 @@ limitations under the License.
 #include "tensorflow/core/platform/tracing.h"
 #include "tensorflow/core/protobuf/transport_options.pb.h"
 #include "tensorflow/core/protobuf/worker.pb.h"
+#include "tensorflow/core/distributed_runtime/rpc/grpc_worker_interface.h"
+
 
 namespace tensorflow {
 
 const int kMaxWorkerRpcRetries = 10;
 
-class GrpcRemoteWorker : public WorkerInterface {
+class GrpcRemoteWorker : public WorkerInterface, public GrpcWorkerInterface{
  public:
   explicit GrpcRemoteWorker(SharedGrpcChannelPtr channel,
                             ::grpc::CompletionQueue* completion_queue,
@@ -60,6 +62,7 @@ class GrpcRemoteWorker : public WorkerInterface {
         cleanupgraph_(Method(GrpcWorkerMethod::kCleanupGraph)),
         cleanupall_(Method(GrpcWorkerMethod::kCleanupAll)),
         recvtensor_(Method(GrpcWorkerMethod::kRecvTensor)),
+        fuserecvtensor_(Method(GrpcWorkerMethod::kFuseRecvTensor)),
         recvbuf_(Method(GrpcWorkerMethod::kRecvBuf)),
         logging_(Method(GrpcWorkerMethod::kLogging)),
         tracing_(Method(GrpcWorkerMethod::kTracing)),
@@ -192,6 +195,13 @@ class GrpcRemoteWorker : public WorkerInterface {
     IssueRequest(request, response, getstepsequence_, std::move(done));
   }
 
+  void FuseRecvTensorAsync(CallOptions* call_opts,
+                           const FuseRecvTensorRequest* request,
+                           FuseTensorResponse* response,
+                           StatusCallback done) override {
+    IssueRequest(request, response, fuserecvtensor_, done, call_opts);
+  }
+
   void RecvTensorAsync(CallOptions* call_opts, const RecvTensorRequest* request,
                        TensorResponse* response, StatusCallback done) override {
     VLOG(1) << "RecvTensorAsync req: " << request->DebugString();
@@ -293,6 +303,16 @@ class GrpcRemoteWorker : public WorkerInterface {
     IssueRequest(&request, response, markrecvfinished_, done);
   }
 
+  void IssueRequest(const protobuf::Message* request,
+      FuseTensorResponse* response,
+      const ::grpc::string& method,
+      StatusCallback done,
+      CallOptions* call_opts = nullptr,
+      int max_retries = kMaxWorkerRpcRetries) {
+    new RPCState<FuseTensorResponse>(&stub_, cq_, method, *request,
+        response, std::move(done), call_opts, callback_threadpool_, max_retries);
+  }
+
   // Helper function for initializing the RpcMethod objects below.
   const char* Method(GrpcWorkerMethod id) { return GrpcWorkerMethodName(id); }
 
@@ -310,6 +330,7 @@ class GrpcRemoteWorker : public WorkerInterface {
   const ::grpc::string cleanupgraph_;
   const ::grpc::string cleanupall_;
   const ::grpc::string recvtensor_;
+  const ::grpc::string fuserecvtensor_;
   const ::grpc::string recvbuf_;
   const ::grpc::string logging_;
   const ::grpc::string tracing_;

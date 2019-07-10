@@ -286,6 +286,16 @@ message GraphOptions {
   // Not currently configurable via the public Python API (i.e. there is no API
   // stability guarantee if you import RewriterConfig explicitly).
   RewriterConfig rewrite_options = 10;
+
+  enum PartitionRecvType {
+    // Use recv
+    Recv = 0;
+
+    // Use FuseRecv
+    FuseRecv = 1;
+  }
+
+  PartitionRecvType recv_type = 11;
 }
 
 message ThreadPoolOptionProto {

@@ -184,6 +184,7 @@ cc_library(
     deps = [
         ":call_options",
         ":message_wrappers",
+        ":tensor_coding",
         "//tensorflow/core:core_cpu_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core:worker_proto_cc",

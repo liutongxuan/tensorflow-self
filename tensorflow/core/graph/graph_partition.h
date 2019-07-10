@@ -76,6 +76,7 @@ struct PartitionOptions {
   // in the graph as a node attribute.
   bool need_to_record_start_times = false;
   std::vector<Microseconds> start_times;
+  bool use_fuserecv_partition = false;
 };
 
 // Partition "input" graph into a set of graphs, one per location.
@@ -86,6 +87,9 @@ struct PartitionOptions {
 // Stores the partitions in *partitions.
 Status Partition(const PartitionOptions& opts, Graph* input,
                  std::unordered_map<string, GraphDef>* partitions);
+
+Status PartitionWithFuse(const PartitionOptions& opts, Graph* g,
+                         std::unordered_map<string, GraphDef>* partitions);
 
 // Add control edges to the partitions to control the ordering
 // and timing of the recv nodes based on the start times calculated

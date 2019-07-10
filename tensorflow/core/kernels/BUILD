@@ -4607,12 +4607,16 @@ cc_library(
     deps = [
         ":no_op",
         ":sendrecv_ops",
+        ":fuserecv_op"
     ],
 )
 
 REQUIRED_DEPS = [
     "//tensorflow/core:framework",
     "//tensorflow/core:lib",
+    "//tensorflow/core:no_op_op_lib",
+    "//tensorflow/core:sendrecv_ops_op_lib",
+    "//tensorflow/core:fuserecv_op_op_lib",
 ]
 
 tf_kernel_library(
@@ -4624,6 +4628,12 @@ tf_kernel_library(
 tf_kernel_library(
     name = "sendrecv_ops",
     prefix = "sendrecv_ops",
+    deps = REQUIRED_DEPS,
+)
+
+tf_kernel_library(
+    name = "fuserecv_op",
+    prefix = "fuserecv_op",
     deps = REQUIRED_DEPS,
 )
 

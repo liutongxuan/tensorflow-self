@@ -563,6 +563,15 @@ tf_gen_op_wrappers_cc(
 )
 
 tf_gen_op_wrappers_cc(
+    name = "fuserecv_ops",
+    include_internal_ops = 1,
+    op_lib_names = [
+        "fuserecv_ops",
+    ],
+    pkg = "//tensorflow/core",
+)
+
+tf_gen_op_wrappers_cc(
     name = "function_ops",
     include_internal_ops = 1,
     op_lib_names = [
