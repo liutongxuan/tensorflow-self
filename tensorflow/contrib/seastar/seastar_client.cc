@@ -39,36 +39,11 @@ seastar::future<> SeastarClient::Connection::Read() {
         }
 
         if (tag->IsRecvTensor()) {
-          // handle tensor response
-          auto message_size = tag->GetResponseMessageSize();
-          auto message_buffer = tag->GetResponseMessageBuffer();
-          return read_buf_.read_exactly(message_size)
-              .then([this, tag, message_size, message_buffer](auto&& message) {
-                memcpy(message_buffer, message.get(), message.size());
-                tag->ParseMessage();
-                auto tensor_size = tag->GetResponseTensorSize();
-                auto tensor_buffer = tag->GetResponseTensorBuffer();
-                if (tensor_size == 0) {
-                  tag->RecvRespDone(tensorflow::Status());
-                  return seastar::make_ready_future();
-                }
-                return read_buf_.read_exactly(tensor_size)
-                    .then(
-                        [this, tag, tensor_size, tensor_buffer](auto&& tensor) {
-                          if (tensor.size() != tensor_size) {
-                            LOG(WARNING)
-                                << "Expected read size is:" << tensor_size
-                                << ", but real tensor size:" << tensor.size();
-                            tag->RecvRespDone(Status(
-                                error::UNKNOWN,
-                                "Seastar Client: read invalid tensorbuf"));
-                            return seastar::make_ready_future();
-                          }
-                          memcpy(tensor_buffer, tensor.get(), tensor.size());
-                          tag->RecvRespDone(tensorflow::Status());
-                          return seastar::make_ready_future();
-                        });
-              });
+          // handle tensor response & fuse recv tensor response
+          int *recv_count = new int(tag->resp_tensor_count_);
+          int *idx = new int(0);
+          bool *error = new bool(false);
+          return this->ReapeatReadTensors(tag, recv_count, idx, error);
         } else {
           // handle general response
           auto resp_body_size = tag->GetResponseBodySize();
@@ -93,6 +68,78 @@ seastar::future<> SeastarClient::Connection::Read() {
               });
         }
       });
+}
+
+seastar::future<> SeastarClient::Connection::ReapeatReadTensors(SeastarClientTag* tag,
+                                                                int* count,
+                                                                int* idx,
+                                                                bool* error) {
+  return seastar::do_until(
+      [this, tag, count, idx, error] {
+        if (*error || *idx == *count) {
+          delete count;
+          delete idx;
+          // NOTE(rangeng.llb): If error happens, tag->RecvRespDone has been called.
+          if (!(*error)) {
+            tag->ScheduleProcess([tag] {
+                tag->HandleResponse(tensorflow::Status());
+              });
+          }
+          delete error;
+          return true;
+        } else {
+          return false;
+        }
+      },
+      [this, tag, idx, error] {
+        return _read_buf.read_exactly(StarMessage::kMessageTotalBytes)
+          .then([this, tag, idx, error] (auto&& tensor_msg) {
+            CHECK_CONNECTION_CLOSE(tensor_msg.size());
+            tag->ParseTensorMessage(*idx, tensor_msg.get(), tensor_msg.size());
+            auto tensor_size = tag->GetResponseTensorSize(*idx);
+            auto tensor_buffer = tag->GetResponseTensorBuffer(*idx);
+            ++(*idx);
+
+            if (tensor_size == 0) {
+              return seastar::make_ready_future();
+            }
+            if (tensor_size >= _8KB) {
+              return _read_buf.read_exactly(tensor_buffer, tensor_size)
+                .then([this, tag, error, tensor_size, tensor_buffer] (auto read_size) {
+                  CHECK_CONNECTION_CLOSE(read_size);
+                  if (read_size != tensor_size) {
+                    LOG(WARNING) << "warning expected read size is:" << tensor_size
+                                 << ", actual read tensor size:" << read_size;
+                    tag->ScheduleProcess([tag] {
+                        tag->HandleResponse(tensorflow::Status(error::UNKNOWN,
+                                                               "Seastar Client: read invalid tensorbuf"));
+                    });
+                    *error = true;
+                    return seastar::make_ready_future();
+                  }
+                  // No need copy here
+                  return seastar::make_ready_future();
+                });
+            } else {
+              return _read_buf.read_exactly(tensor_size)
+                .then([this, tag, error, tensor_size, tensor_buffer] (auto&& tensor) {
+                  CHECK_CONNECTION_CLOSE(tensor.size());
+                  if (tensor.size() != tensor_size) {
+                    LOG(WARNING) << "warning expected read size is:" << tensor_size
+                                 << ", actual read tensor size:" << tensor.size();
+                    tag->ScheduleProcess([tag] {
+                        tag->HandleResponse(tensorflow::Status(error::UNKNOWN,
+                                                               "Seastar Client: read invalid tensorbuf"));
+                      });
+                    *error = true;
+                    return seastar::make_ready_future();
+                  }
+                  memcpy(tensor_buffer, tensor.get(), tensor.size());
+                  return seastar::make_ready_future();
+              });
+            }
+        });
+  });
 }
 
 void SeastarClient::Connect(seastar::ipv4_addr server_addr, std::string s,

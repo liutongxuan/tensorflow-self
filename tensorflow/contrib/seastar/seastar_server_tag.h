@@ -19,9 +19,17 @@ class SeastarWorkerService;
 
 class SeastarServerTag {
  public:
-  // Server Header struct 32B:
-  // |ID:8B|tag_id:8B|method:4B|status:2B|err_msg_len:2B|body_len:8B|err_msg...|
-  static const uint64_t HEADER_SIZE = 32;
+  // Server Header 32B:
+  // |  BBBB:4B | method:4B  |
+  // |        tag:8B         |
+  // | status:4B|user_data:4B|
+  // |     payload_len:8B    |
+  static const size_t kMethodIndex = 4;
+  static const size_t kTagIndex = 8;
+  static const size_t kStatusIndex = 16;
+  static const size_t kUserDataIndex = 20;
+  static const size_t kPayloadLenIndex = 24;
+  static const size_t kHeaderSize = 32;
 
   SeastarServerTag(seastar::channel* seastar_channel,
                    SeastarWorkerService* seastar_worker_service);
@@ -34,35 +42,55 @@ class SeastarServerTag {
   // Called by seastar engine.
   void SendRespDone();
 
+  void StartResp();
+
   void ProcessDone(Status s);
 
   uint64_t GetRequestBodySize();
 
   char* GetRequestBodyBuffer();
 
-  void StartResp();
-  void StartRespWithTensor();
+  void InitResponseTensorBufs(int resp_tensor_count);
+  uint64_t GetRequestMessageSize(int idx);
+  char* GetRequestMessageBuffer(int idx);
+  uint64_t GetRequestTensorSize(int idx);
+  char* GetRequestTensorBuffer(int idx);
+  int GetReqTensorCount();
+  Status ParseMessage(int idx, const char* tensor_msg, size_t len);
+  Status ParseTensor();
+  void FillRespBody();
+
+  bool IsRecvTensor();
+
+  Status ParseMetaData(const char*, size_t);
 
  private:
   seastar::user_packet* ToUserPacket();
   seastar::user_packet* ToUserPacketWithTensor();
 
  public:
+  seastar::channel* seastar_channel_;
+  SeastarWorkerServiceMethod method_;
+  uint64_t client_tag_id_;
+  int32 status_;
+  int req_tensor_count_;
+  int resp_tensor_count_;
+
   SeastarBuf req_body_buf_;
   SeastarBuf resp_header_buf_;
   SeastarBuf resp_body_buf_;
-  SeastarBuf resp_message_buf_;
-  SeastarBuf resp_tensor_buf_;
 
-  SeastarWorkerServiceMethod method_;
+  std::vector<SeastarBuf> resp_message_bufs_;
+  std::vector<SeastarBuf> resp_tensor_bufs_;
 
-  seastar::channel* seastar_channel_;
-  int64_t client_tag_id_;
+  std::vector<SeastarBuf> req_tensor_bufs_;
 
-  // Used to serialize and send response data.
+  ParseMetaDataCallback parse_meta_data_;
+  ParseMessageCallback parse_message_;
+  ParseTensorCallback parse_tensor_;
   StatusCallback send_resp_;
   StatusCallback clear_;
-  int16_t status_;
+
   SeastarWorkerService* seastar_worker_service_;
 };
 
@@ -72,6 +100,11 @@ void InitSeastarServerTag(protobuf::Message* request,
 void InitSeastarServerTag(protobuf::Message* request,
                           SeastarTensorResponse* response,
                           SeastarServerTag* tag, StatusCallback clear);
+
+void InitSeastarServerTag(protobuf::Message* request,
+                          SeastarFuseTensorResponse* response,
+                          SeastarServerTag* tag,
+                          StatusCallback clear);
 
 }  // namespace tensorflow
 

@@ -23,6 +23,10 @@ class SeastarClient {
     Connection(seastar::connected_socket&& fd, seastar::channel* chan,
                SeastarTagFactory* tag_factory, seastar::socket_address addr);
     seastar::future<> Read();
+    seastar::future<> ReapeatReadTensors(SeastarClientTag* tag,
+                                         int* count,
+                                         int* cur_idx,
+                                         bool* error);
   };
 };
 

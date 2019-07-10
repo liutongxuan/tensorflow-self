@@ -114,4 +114,10 @@ bool GrpcMaybeParseProto(grpc::ByteBuffer* src, string* dst) {
   return true;
 }
 
+bool GrpcMaybeParseProto(const ::grpc::ByteBuffer& src, FuseTensorResponse* dst) {
+  GrpcByteBufferSource gsrc;
+  bool ok = gsrc.Init(src);
+  ::tensorflow::protobuf::io::ZeroCopyInputStream* zcstream = &gsrc;
+  return ok && dst->ParseFrom(zcstream).ok();
+}
 }  // namespace tensorflow

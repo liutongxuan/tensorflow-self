@@ -30,6 +30,9 @@ struct SeastarMessage {
   static const size_t kSeastarMessageBufferSize = kMessageTotalBytes;
   static void SerializeMessage(const SeastarMessage& rm, char* data);
   static void DeserializeMessage(SeastarMessage* rm, const char* data);
+  static uint64_t SerializeTensorMessage(const Tensor& in, const TensorProto& inp,
+                                         bool is_dead, StarBuf* message_buf,
+                                         StarBuf* tensor_buf);
 };
 
 }  // namespace tensorflow
