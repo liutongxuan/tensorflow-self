@@ -25,6 +25,12 @@ class SeastarWorker : public Worker, public SeastarWorkerInterface {
   // Specialized version of RecvTensor for seastar.
   void RecvTensorAsync(CallOptions* opts, const RecvTensorRequest* request,
                        SeastarTensorResponse* response, StatusCallback done);
+  
+  void FuseRecvTensorAsync(CallOptions* opts,
+                           const FuseRecvTensorRequest* request,
+                           StarFuseTensorResponse *response,
+                           StatusCallback done);
+
   WorkerEnv* env();
 };
 
@@ -49,6 +55,7 @@ class SeastarWorkerService {
   void LoggingHandler(SeastarServerTag* tag);
   void TracingHandler(SeastarServerTag* tag);
   void RecvTensorHandlerRaw(SeastarServerTag* tag);
+  void FuseRecvTensorHandlerRaw(SeastarServerTag* tag);
   void RecvBufHandler(SeastarServerTag* tag);
   void CompleteGroupHandler(SeastarServerTag* tag);
   void CompleteInstanceHandler(SeastarServerTag* tag);
