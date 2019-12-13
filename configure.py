@@ -466,7 +466,7 @@ def check_bazel_version(min_version, max_version):
     print('Cannot find bazel. Please install bazel.')
     sys.exit(0)
   curr_version = run_shell(
-      ['bazel', '--batch', '--bazelrc=/dev/null', 'version'])
+      ['/Users/eva/Workspace/liutongxuan/bazel_24/lib/bazel/bin/bazel', '--batch', '--bazelrc=/dev/null', 'version'])
 
   for line in curr_version.split('\n'):
     if 'Build label: ' in line:
@@ -1579,6 +1579,7 @@ def main():
   config_info_line('nokafka', 'Disable Apache Kafka support.')
   config_info_line('nonccl', 'Disable NVIDIA NCCL support.')
 
+  config_info_line('seastar', 'Build with seastar support.')
 
 if __name__ == '__main__':
   main()

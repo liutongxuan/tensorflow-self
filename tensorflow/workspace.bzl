@@ -7,6 +7,8 @@ load("//third_party/nccl:nccl_configure.bzl", "nccl_configure")
 load("//third_party/mkl:build_defs.bzl", "mkl_repository")
 load("//third_party/git:git_configure.bzl", "git_configure")
 load("//third_party/py:python_configure.bzl", "python_configure")
+load("//third_party/boost:workspace.bzl", boost = "repo")
+
 load("//third_party/sycl:sycl_configure.bzl", "sycl_configure")
 load("//third_party/systemlibs:syslibs_configure.bzl", "syslibs_configure")
 load("//third_party/toolchains/remote:configure.bzl", "remote_execution_configure")
@@ -71,6 +73,8 @@ def tf_workspace(path_prefix = "", tf_repo_name = ""):
     remote_execution_configure(name = "local_config_remote_execution")
 
     initialize_third_party()
+
+    boost()
 
     # For windows bazel build
     # TODO: Remove def file filter when TensorFlow can export symbols properly on Windows.
@@ -657,6 +661,17 @@ def tf_workspace(path_prefix = "", tf_repo_name = ""):
         licenses = ["notice"],  # New BSD License
         testonly_ = True,
         deps = ["@com_google_guava", "@com_google_truth"],
+    )
+
+    tf_http_archive(
+      name = "seastar",
+      urls = [
+          "https://mirror.bazel.build/github.com/AlibabaPAI/seastar/archive/seastar_protocol.tar.gz",
+          "https://github.com/AlibabaPAI/seastar/archive/tensorflow_protocol.tar.gz",
+      ],
+      sha256 = "00e934bff0ce69e4c048bb3e896de4d99bf6c95e193fe82fd2b666229e0b620b",
+      strip_prefix = "seastar-tensorflow_protocol",
+      build_file = clean_dep("//third_party:seastar.BUILD"),
     )
 
     java_import_external(

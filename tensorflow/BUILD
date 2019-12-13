@@ -322,6 +322,12 @@ config_setting(
     visibility = ["//visibility:public"],
 )
 
+config_setting(
+    name = "with_seastar_support",
+    define_values = {"with_seastar_support": "true"},
+    visibility = ["//visibility:public"],
+)
+
 # Crosses between framework_shared_object and a bunch of other configurations
 # due to limitations in nested select() statements.
 config_setting(

@@ -43,3 +43,5 @@ gradleBuild
 Podfile.lock
 Pods
 xcuserdata
+CMakeLists.txt
+cmake-build-debug/
