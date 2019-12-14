@@ -155,6 +155,7 @@ class Node {
   bool IsControlTrigger() const { return class_ == NC_CONTROL_TRIGGER; }
   bool IsSend() const { return class_ == NC_SEND || class_ == NC_HOST_SEND; }
   bool IsRecv() const { return class_ == NC_RECV || class_ == NC_HOST_RECV; }
+  bool IsFuseRecv() const { return class_ == NC_FUSE_RECV || class_ == NC_HOST_FUSE_RECV; }
   bool IsConstant() const { return class_ == NC_CONSTANT; }
   bool IsVariable() const { return class_ == NC_VARIABLE; }
   bool IsIdentity() const { return class_ == NC_IDENTITY; }
@@ -170,6 +171,7 @@ class Node {
   }
   bool IsHostSend() const { return class_ == NC_HOST_SEND; }
   bool IsHostRecv() const { return class_ == NC_HOST_RECV; }
+  bool IsHostFuseRecv() const { return class_ == NC_HOST_FUSE_RECV; }
   bool IsScopedAllocator() const { return class_ == NC_SCOPED_ALLOCATOR; }
   bool IsCollective() const { return class_ == NC_COLLECTIVE; }
 
@@ -251,6 +253,8 @@ class Node {
     NC_HOST_SEND,
     NC_RECV,
     NC_HOST_RECV,
+    NC_FUSE_RECV,
+    NC_HOST_FUSE_RECV,
     NC_CONSTANT,
     NC_VARIABLE,
     NC_IDENTITY,
@@ -747,11 +751,13 @@ inline bool IsLoopCond(const Node* node) { return node->IsLoopCond(); }
 inline bool IsControlTrigger(const Node* n) { return n->IsControlTrigger(); }
 inline bool IsSend(const Node* node) { return node->IsSend(); }
 inline bool IsRecv(const Node* node) { return node->IsRecv(); }
+inline bool IsFuseRecv(const Node* node) { return node->IsFuseRecv(); }
 inline bool IsHostSend(const Node* node) { return node->IsHostSend(); }
 inline bool IsHostRecv(const Node* node) { return node->IsHostRecv(); }
+inline bool IsHostFuseRecv(const Node* node) { return node->IsHostFuseRecv(); }
 
 // True for Nodes that mediate the transfer of values between processes.
-inline bool IsTransferNode(const Node* n) { return IsSend(n) || IsRecv(n); }
+inline bool IsTransferNode(const Node* n) { return IsSend(n) || IsRecv(n) || IsFuseRecv(n); }
 
 inline bool IsConstant(const Node* node) { return node->IsConstant(); }
 inline bool IsVariable(const Node* node) { return node->IsVariable(); }

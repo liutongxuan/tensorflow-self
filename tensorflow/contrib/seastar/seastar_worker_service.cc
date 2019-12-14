@@ -8,7 +8,6 @@
 #include "tensorflow/core/distributed_runtime/rendezvous_mgr_interface.h"
 #include "tensorflow/core/framework/rendezvous.h"
 #include "tensorflow/core/lib/core/threadpool.h"
-#include "tensorflow/core/lib/monitoring/cat_reporter.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/public/session_options.h"
 
@@ -71,14 +70,10 @@ HandleRequestFunction SeastarWorkerService::GetHandler(
 
 void SeastarWorkerService::RunGraphHandler(SeastarServerTag* tag) {
   int64 delta_micros = 0;
-  if (CAT_LOG_IS_ON(1)) {
-    delta_micros = Env::Default()->NowMicros();
-  }
   Schedule([this, tag, delta_micros]() {
     auto* call = new SeastarCall<RunGraphRequest, RunGraphResponse>();
     InitSeastarServerTag(&call->req_, &call->resp_, tag);
     auto* call_opts = new CallOptions;
-    call_opts->SetDeltaMicros(delta_micros);
     auto* wrapped_request = new ProtoRunGraphRequest(&call->req_);
     auto* wrapped_response = new NonOwnedProtoRunGraphResponse(&call->resp_);
 
@@ -208,27 +203,13 @@ void SeastarWorkerService::GetStepSequenceHandler(SeastarServerTag* tag) {
 }
 
 void SeastarWorkerService::FuseRecvTensorHandlerRaw(SeastarServerTag *tag) {
-  int64 handle_start_micros = 0;
-  if (CAT_LOG_IS_ON(3)) {
-    handle_start_micros = Env::Default()->NowMicros();
-  }
-  Schedule([this, tag, handle_start_micros]() {
+  Schedule([this, tag]() {
     auto *call_opts = new CallOptions;
     auto *call =new SeastarCall<FuseRecvTensorRequest, SeastarFuseTensorResponse>();
     InitSeastarServerTag(&call->req_,
                          &call->resp_,
                          tag,
                          [call](const Status &s) { delete call; });
-
-    int64 delta_micros = 0;
-    if (CAT_LOG_IS_ON(3)) {
-      // delta_micros records the timestamp's different between client/server
-      // we assumed network communication takes about 50us (statistic from ping)
-      delta_micros = handle_start_micros - call->req_.recv_req_start_micros() - 50;
-      CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                              "FuseRecvReqStartToRpcHandle", delta_micros);
-      call_opts->SetDeltaMicros(delta_micros);
-    }
 
     worker_->FuseRecvTensorAsync(call_opts, &call->req_, &call->resp_,
                                  [tag, call, call_opts](const Status &s) {
@@ -239,25 +220,11 @@ void SeastarWorkerService::FuseRecvTensorHandlerRaw(SeastarServerTag *tag) {
 }
 
 void SeastarWorkerService::RecvTensorHandlerRaw(SeastarServerTag* tag) {
-  int64 handle_start_micros = 0;
-  if (CAT_LOG_IS_ON(3)) {
-    handle_start_micros = Env::Default()->NowMicros();
-  }
-  Schedule([this, tag, handle_start_micros]() {
+  Schedule([this, tag]() {
     auto* call_opts = new CallOptions;
     auto* call = new SeastarCall<RecvTensorRequest, SeastarTensorResponse>();
     InitSeastarServerTag(&call->req_, &call->resp_, tag,
                          [call](const Status& s) { delete call; });
-    int64 delta_micros = 0;
-    if (CAT_LOG_IS_ON(3)) {
-      // delta_micros records the timestamp's different between client/server
-      // we assumed network communication takes about 50us (statistic from ping)
-      delta_micros = handle_start_micros - call->req_.recv_req_start_micros() - 50;
-      CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                              "RecvReqStartToRpcHandle", delta_micros);
-      call_opts->SetDeltaMicros(delta_micros);
-    }
-
     worker_->RecvTensorAsync(call_opts, &call->req_, &call->resp_,
                              [tag, call, call_opts](const Status& s) {
                                delete call_opts;
@@ -278,16 +245,6 @@ void SeastarWorker::RecvTensorAsync(CallOptions* opts,
                                     const RecvTensorRequest* request,
                                     SeastarTensorResponse* response,
                                     StatusCallback done) {
-  if (CAT_LOG_IS_ON(3)) {
-    int64 recv_start_micros = request->recv_req_start_micros();
-    int64 delta_micros = opts->GetDeltaMicros();
-    if (recv_start_micros > 0) {
-      CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                              "RecvReqStartToSched",
-                              Env::Default()->NowMicros() -
-                                  delta_micros - recv_start_micros);
-    }
-  }
 
   const int64 step_id = request->step_id();
   const string& key = request->rendezvous_key();
@@ -356,11 +313,6 @@ void SeastarWorker::RecvTensorAsync(CallOptions* opts,
           // !s.ok()
           done(status);
         }
-        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                                "RecvLocalDoneToRespSend",
-                                Env::Default()->NowMicros() -
-                                    std::max(send_args.rendezvous_micros,
-                                             recv_args.rendezvous_micros));
       });
 }
 
@@ -368,17 +320,6 @@ void SeastarWorker::FuseRecvTensorAsync(CallOptions* opts,
                                         const FuseRecvTensorRequest* request,
                                         SeastarFuseTensorResponse* response,
                                         StatusCallback done) {
-  if (CAT_LOG_IS_ON(3)) {
-    int64 recv_start_micros = request->recv_req_start_micros();
-    int64 delta_micros = opts->GetDeltaMicros();
-    if (recv_start_micros > 0) {
-      CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                              "FuseRecvReqStartToSched",
-                              Env::Default()->NowMicros() -
-                                  delta_micros - recv_start_micros);
-    }
-  }
-
   const int64 step_id = request->step_id();
   int fuse_count = request->rendezvous_key_size();
   std::vector<Rendezvous::ParsedKey> parsed_keys(fuse_count);
@@ -403,20 +344,14 @@ void SeastarWorker::FuseRecvTensorAsync(CallOptions* opts,
       [step_id]() {
         LOG(WARNING) << "Seastar FuseRecvTensor cancelled for " << step_id;
       });
-  int64 prepare_start = Env::Default()->NowMicros();
   env_->rendezvous_mgr->FuseRecvLocalAsync(
       step_id, parsed_keys,
-      [opts, request, response, done, fuse_count, src_devs, step_id, prepare_start](
+      [opts, request, response, done, fuse_count, src_devs, step_id](
           const Status& status,
           const std::vector<Rendezvous::Args>& send_argses,
           const Rendezvous::Args& recv_args,
           const std::vector<Tensor>& vals,
           const std::vector<bool>& is_deads) {
-
-        //log total data prepare time
-        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                                "FuseRecvDataPrepareCost",
-                                Env::Default()->NowMicros() - prepare_start);
 
         opts->ClearCancelCallback();
         if (!status.ok()) {
@@ -424,7 +359,6 @@ void SeastarWorker::FuseRecvTensorAsync(CallOptions* opts,
                   << status.error_message();
         }
         if (status.ok()) {
-          int64 start_prepare_resp = Env::Default()->NowMicros();
           response->Init(fuse_count);
           int *fuse_counter = new int(fuse_count);
 
@@ -451,9 +385,6 @@ void SeastarWorker::FuseRecvTensorAsync(CallOptions* opts,
             }
           } // end of cycle for with fuse_count
 
-          CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                                  "FuseRecvLocalDoneToRespSend",
-                                  Env::Default()->NowMicros() - start_prepare_resp);
         } else {
           delete src_devs;
           done(status);

@@ -280,7 +280,7 @@ Status KernelAndDeviceOp::Run(ScopedStepContainer* step_container,
 
   OpKernelContext context(&params);
 
-  if (kernel_->def().op() == "_Recv") {
+  if (kernel_->def().op() == "_Recv" || kernel_->def().op() == "_FuseRecv") {
     // TODO(apassos) do not special-case _Recv. Currently the GPU device fails
     // if trying to run _Recv->Compute(), specifically checking for _Recv. To go
     // around this we call _Recv->ComputeAsync, to mimic graph mode behavior.

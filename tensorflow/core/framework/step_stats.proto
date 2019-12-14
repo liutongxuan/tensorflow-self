@@ -72,6 +72,8 @@ message NodeExecStats {
   int64 op_end_rel_nanos = 15;
   int64 all_end_rel_nanos = 16;
   int64 scheduled_nanos = 17;
+  uint32 fuse_rendezvous_count = 18;
+  repeated string rendezvous_keys = 19;
 };
 
 message DeviceStepStats {

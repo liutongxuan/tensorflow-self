@@ -13,6 +13,11 @@ public:
                                const RecvTensorRequest* request,
                                SeastarTensorResponse* response,
                                StatusCallback done) = 0;
+
+  virtual void FuseRecvTensorAsync(CallOptions* call_opts,
+                                   const FuseRecvTensorRequest* request,
+                                   SeastarFuseTensorResponse* response,
+                                   StatusCallback done) = 0;
 };
 
 }  // namespace tensorflow

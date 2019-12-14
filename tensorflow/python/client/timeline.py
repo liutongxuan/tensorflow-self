@@ -433,6 +433,10 @@ class Timeline(object):
     elif node_name == 'RecvTensor':
       # RPC tracing does not use the standard timeline_label format.
       op = 'RecvTensor'
+      inputs = [x for x in nodestats.rendezvous_keys if x]
+    elif node_name == "FuseRecvTensor":
+      op = "FuseRecvTensor"
+      inputs = [x for x in nodestats.rendezvous_keys if x]
     else:
       _, op, inputs = self._parse_op_label(nodestats.timeline_label)
     args = {'name': node_name, 'op': op}
@@ -525,7 +529,8 @@ class Timeline(object):
         end_time = node_stats.all_start_micros + node_stats.all_end_rel_micros
         self._emit_op(node_stats, device_pid, is_gputrace)
 
-        if is_gputrace or node_stats.node_name == 'RecvTensor':
+        if is_gputrace or node_stats.node_name == 'RecvTensor' \
+                or node_stats.node_name == 'FuseRecvTensor':
           continue
 
         _, _, inputs = self._parse_op_label(node_stats.timeline_label)

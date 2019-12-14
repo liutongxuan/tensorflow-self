@@ -155,9 +155,11 @@ class GrpcRemoteWorker : public WorkerInterface, public GrpcWorkerInterface{
             send_start_usec = std::min(send_start_usec, end_usec - 1);
           }
           const string& key = request->buf_rendezvous_key();
+          std::vector<string> keys;
+          keys.push_back(key);
           logger_->RecordDataTransfer(
               step_id, send_start_usec, end_usec, key, request->src_device(),
-              request->dst_device(), num_bytes, "", "RecvBuf");
+              request->dst_device(), num_bytes, "", "RecvBuf", keys);
         }
         VLOG(2) << "done callback, req: " << request->DebugString()
                 << " response " << response->DebugString();
@@ -199,7 +201,54 @@ class GrpcRemoteWorker : public WorkerInterface, public GrpcWorkerInterface{
                            const FuseRecvTensorRequest* request,
                            FuseTensorResponse* response,
                            StatusCallback done) override {
-    IssueRequest(request, response, fuserecvtensor_, done, call_opts);
+    VLOG(1) << "FuseRecvTensorAsync req: " << request->DebugString();
+    int64 start_usec = Env::Default()->NowMicros();
+    // Type-specialized logging for this method.
+    bool logging_active = logger_->LoggingActive() || VLOG_IS_ON(2);
+
+    StatusCallback wrapper_done;
+    const StatusCallback* cb_to_use;
+    if (!logging_active) {
+      cb_to_use = &done;  // No additional work to do, so just use done directly
+    } else {
+      wrapper_done = [this, request, response, done, start_usec](const Status& s) {
+        if (logger_->LoggingActive()) {
+          int64 end_usec = Env::Default()->NowMicros();
+          int64 step_id = request->step_id();
+          int64 bytes = response->GetTotalBytes();
+          int64 send_start_usec = start_usec;
+
+          // check Recv for logging detail
+          if (response->SendStartTime()) {
+            send_start_usec = std::max(
+                start_usec,
+                static_cast<int64>(response->SendStartTime()));
+            send_start_usec = std::min(send_start_usec, end_usec - 1);
+          }
+          const string& key = request->rendezvous_key(0);
+          std::vector<string> key_parts = str_util::Split(key, ';');
+          if (key_parts.size() != 5) {
+            LOG(WARNING) << "Bad key: " << key;
+          } else {
+            std::vector<string> keys(request->rendezvous_key_size());
+            for (int i = 0; i < request->rendezvous_key_size(); i++){
+              keys.push_back(request->rendezvous_key(i));
+            }
+            logger_->RecordRecvTensor(step_id, send_start_usec, end_usec,
+                                      key_parts[3],  // tensor name
+                                      key_parts[0],  // src_device
+                                      key_parts[2],  // dst_device
+                                      bytes,
+                                      "FuseRecvTensor",
+                                      keys);
+          }
+        }
+        done(s);
+      };
+
+      cb_to_use = &wrapper_done;
+    }
+    IssueRequest(request, response, fuserecvtensor_, *cb_to_use, call_opts);
   }
 
   void RecvTensorAsync(CallOptions* call_opts, const RecvTensorRequest* request,
@@ -241,11 +290,15 @@ class GrpcRemoteWorker : public WorkerInterface, public GrpcWorkerInterface{
           if (key_parts.size() != 5) {
             LOG(WARNING) << "Bad key: " << key;
           } else {
+            std::vector<string> keys;
+            keys.push_back(key);
             logger_->RecordRecvTensor(step_id, send_start_usec, end_usec,
                                       key_parts[3],  // tensor name
                                       key_parts[0],  // src_device
                                       key_parts[2],  // dst_device
-                                      bytes);
+                                      bytes,
+                                      "RecvTensor",
+                                      keys);
           }
         }
         VLOG(2) << "done callback, req: " << request->DebugString()

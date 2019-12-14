@@ -170,11 +170,15 @@ public:
           if (key_parts.size() != 5) {
             LOG(WARNING) << "Bad key: " << key;
           } else {
+            std::vector<string> keys;
+            keys.push_back(key);
             logger_->RecordRecvTensor(step_id, send_start_usec, end_usec,
                                       key_parts[3],  // tensor name
                                       key_parts[0],  // src_device
                                       key_parts[2],  // dst_device
-                                      bytes);
+                                      bytes,
+                                      "RecvTensor",
+                                      keys);
           }
         }
         done(s);
@@ -224,12 +228,17 @@ public:
           if (key_parts.size() != 5) {
             LOG(WARNING) << "Bad key: " << key;
           } else {
-            logger_->RecordFuseRecvTensor(step_id, send_start_usec, end_usec,
+            std::vector<string> keys(request->rendezvous_key_size());
+            for (int i = 0; i < request->rendezvous_key_size(); i++){
+              keys.push_back(request->rendezvous_key(i));
+            }
+            logger_->RecordRecvTensor(step_id, send_start_usec, end_usec,
                                       key_parts[3],  // tensor name
                                       key_parts[0],  // src_device
                                       key_parts[2],  // dst_device
                                       bytes,
-                                      request->rendezvous_key_size());
+                                      "FuseRecvTensor",
+                                      keys);
           }
         }
         done(s);

@@ -87,9 +87,12 @@ void WorkerCacheLogger::RecordRecvTensor(int64 step_id, int64 start_usecs,
                                          const string& tensor_name,
                                          const string& src_device,
                                          const string& dst_device,
-                                         int64 bytes) {
+                                         int64 bytes,
+                                         const string& name,
+                                         std::vector<string>& rendezv_keys
+) {
   RecordDataTransfer(step_id, start_usecs, end_usecs, tensor_name, src_device,
-                     dst_device, bytes, "", "RecvTensor");
+                     dst_device, bytes, "", name, rendezv_keys);
 }
 
 void WorkerCacheLogger::RecordDataTransfer(int64 step_id, int64 start_usecs,
@@ -97,8 +100,10 @@ void WorkerCacheLogger::RecordDataTransfer(int64 step_id, int64 start_usecs,
                                            const string& tensor_name,
                                            const string& src_device,
                                            const string& dst_device,
-                                           int64 bytes, const string& details,
-                                           const string& transfer_method_name) {
+                                           int64 bytes,
+                                           const string& details,
+                                           const string& transfer_method_name,
+                                           std::vector<string>& rendezv_keys) {
   NodeExecStats* ns = new NodeExecStats;
   ns->set_node_name(transfer_method_name);
   int64 elapsed_usecs = end_usecs - start_usecs;
@@ -122,6 +127,10 @@ void WorkerCacheLogger::RecordDataTransfer(int64 step_id, int64 start_usecs,
   ns->set_op_start_rel_micros(0);
   ns->set_op_end_rel_micros(elapsed_usecs);
   ns->set_all_end_rel_micros(elapsed_usecs);
+  if (!rendezv_keys.empty()) {
+    ns->set_fuse_rendezvous_count(rendezv_keys.size());
+    *ns->mutable_rendezvous_keys() = {rendezv_keys.begin(), rendezv_keys.end()};
+  }
   NodeOutput* no = ns->add_output();
   no->set_slot(0);
   no->mutable_tensor_description()

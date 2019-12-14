@@ -58,7 +58,8 @@ class WorkerCacheLogger {
   // later retrieval by RetrieveLogs().
   void RecordRecvTensor(int64 step_id, int64 start_usecs, int64 end_usecs,
                         const string& tensor_name, const string& src_device,
-                        const string& dst_device, int64 bytes);
+                        const string& dst_device, int64 bytes, const string& name,
+                        std::vector<string>& rendezv_keys);
 
   // Generates a NodeExecStats record with the given data, and saves for
   // later retrieval by RetrieveLogs().
@@ -66,7 +67,8 @@ class WorkerCacheLogger {
                           const string& tensor_name, const string& src_device,
                           const string& dst_device, int64 bytes,
                           const string& details,
-                          const string& transfer_method_name);
+                          const string& transfer_method_name,
+                          std::vector<string>& rendezv_keys);
 
  private:
   mutex count_mu_;

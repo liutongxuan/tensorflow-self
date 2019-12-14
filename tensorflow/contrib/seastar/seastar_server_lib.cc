@@ -147,10 +147,10 @@ Status SeastarServer::Init() {
   RendezvousMgrCreationFunction rendezvous_mgr_func =
       [this](const WorkerEnv* env) { return new SeastarRendezvousMgr(env); };
 
-//  GrpcServerOptions opts;
-//  opts.rendezvous_mgr_func = rendezvous_mgr_func;
-  return GrpcServer::Init(nullptr, rendezvous_mgr_func, nullptr,
-                          nullptr, CreateNoOpStatsPublisher);
+  GrpcServerOptions opts;
+  opts.rendezvous_mgr_func = rendezvous_mgr_func;
+  opts.stats_factory = CreateNoOpStatsPublisher;
+  return GrpcServer::Init(opts);
 }
 
 Status SeastarServer::ParseChannelSpec(const WorkerCacheFactoryOptions& options,

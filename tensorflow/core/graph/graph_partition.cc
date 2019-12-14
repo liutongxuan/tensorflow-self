@@ -1277,7 +1277,7 @@ Status AddControlEdges(const PartitionOptions& opts,
 // if possible.
 void SetIncarnation(const PartitionOptions& opts, NodeDef* ndef) {
   StringPiece op(ndef->op());
-  if (op != "_Send" && op != "_Recv") {
+  if (op != "_Send" && op != "_Recv" && op != "_FuseRecv") {
     // Not related to send/recv.
     return;
   }

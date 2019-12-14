@@ -405,7 +405,8 @@ bool IsReciprocalGrad(const NodeDef& node) {
 }
 
 bool IsRecv(const NodeDef& node) {
-  return node.op() == "_Recv" || node.op() == "_HostRecv";
+  return node.op() == "_Recv" || node.op() == "_HostRecv"
+      || node.op() == "_FuseRecv" || node.op() == "_HostFuseRecv";
 }
 
 bool IsReduction(const NodeDef& node) {

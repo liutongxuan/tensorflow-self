@@ -68,6 +68,8 @@ const std::unordered_map<string, Node::NodeClass>& Node::kNodeClassTable =
         {"_HostSend", NC_HOST_SEND},
         {"_Recv", NC_RECV},
         {"_HostRecv", NC_HOST_RECV},
+        {"_FuseRecv", NC_FUSE_RECV},
+        {"_HostFuseRecv", NC_HOST_FUSE_RECV},
         {"Const", NC_CONSTANT},
         {"HostConst", NC_CONSTANT},
         {"Variable", NC_VARIABLE},

@@ -137,7 +137,8 @@ class DebugAnalyzer(object):
 
   # Op types to be omitted when generating descriptions of graph structure.
   _GRAPH_STRUCT_OP_TYPE_BLACKLIST = (
-      "_Send", "_Recv", "_HostSend", "_HostRecv", "_Retval")
+      "_Send", "_Recv", "_HostSend", "_HostRecv", "_Retval", "_FuseRecv",
+      "_HostFuseRecv")
 
   def __init__(self, debug_dump, config):
     """DebugAnalyzer constructor.

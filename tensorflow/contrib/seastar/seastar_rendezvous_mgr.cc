@@ -9,7 +9,6 @@
 #include "tensorflow/core/distributed_runtime/worker_interface.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/lib/core/errors.h"
-#include "tensorflow/core/lib/monitoring/cat_reporter.h"
 #include "tensorflow/core/lib/strings/numbers.h"
 #include "tensorflow/core/lib/strings/str_util.h"
 #include "tensorflow/core/platform/logging.h"
@@ -127,9 +126,6 @@ private:
           recv_done();
         },
         std::move(recv_done), _1);
-    if (CAT_LOG_IS_ON(3)) {
-      req_.set_recv_req_start_micros(Env::Default()->NowMicros());
-    }
     seastar_wi_->RecvTensorAsync(&opts_, &req_, &resp_, std::move(cb));
   }
 
@@ -241,9 +237,6 @@ class SeastarFuseRecvTensorCall : public BaseRecvTensorCall {
         },
         std::move(recv_done), _1);
 
-    if (CAT_LOG_IS_ON(3)) {
-      fuse_req_.set_recv_req_start_micros(Env::Default()->NowMicros());
-    }
     fuse_resp_.Init(fuse_count_);
     star_wi_->FuseRecvTensorAsync(&opts_, &fuse_req_, &fuse_resp_,
                                   std::move(cb));
@@ -411,32 +404,9 @@ void SeastarRemoteRendezvous::RecvFromRemoteAsync(
     return;
   }
 
-  if(CAT_LOG_IS_ON(3) && recv_args.rendezvous_micros > 0) {
-    int64 duration = env_->env->NowMicros() - recv_args.rendezvous_micros;
-    CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                            "RecvComputeToReqStart", duration);
-  }
-
   // Start "call".
   Ref();
   call->Start([this, call]() {
-    int64 recv_done_micros = 0;
-    if (CAT_LOG_IS_ON(3)) {
-      int64 req_start_micros = call->req_.recv_req_start_micros();
-      int64 resp_start_micros = call->resp_.send_start_micros();
-      int64 current_micros = env_->env->NowMicros();
-      if (resp_start_micros > 0) {
-        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                                "RecvRespStartToRespDone",
-                                current_micros - resp_start_micros);
-      }
-      if (req_start_micros > 0) {
-        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                                "RecvReqStartToRespDone",
-                                current_micros - req_start_micros);
-      }
-      recv_done_micros = current_micros;
-    }
     // Removes "call" from active_. Prevent StartAbort().
     DeregisterCall(call);
     // If StartAbort was called prior to DeregisterCall, then the
@@ -447,8 +417,6 @@ void SeastarRemoteRendezvous::RecvFromRemoteAsync(
     call->wi_ = nullptr;
     get_call_freelist()->Release(call, session()->worker_cache.get());
     Unref();
-    CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace, "RespDoneToRecvDone",
-                            env_->env->NowMicros() - recv_done_micros);
   });
 }
 
@@ -516,23 +484,6 @@ void SeastarRemoteRendezvous::FuseRecvFromRemoteAsync(
 
   // Start "call".
   call->Start([this, call]() {
-    int64 recv_done_micros = 0;
-    if (CAT_LOG_IS_ON(3)) {
-      int64 req_start_micros = call->fuse_req_.recv_req_start_micros();
-      int64 resp_start_micros = call->fuse_resp_.send_start_micros();
-      int64 current_micros = env_->env->NowMicros();
-      if (resp_start_micros > 0) {
-        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                                "FuseRecvRespStartToRespDone",
-                                current_micros - resp_start_micros);
-      }
-      if (req_start_micros > 0) {
-        CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace,
-                                "FuseRecvReqStartToRespDone",
-                                current_micros - req_start_micros);
-      }
-      recv_done_micros = current_micros;
-    }
     // Removes "call" from active_. Prevent StartAbort().
     DeregisterCall(call);
     // If StartAbort was called prior to DeregisterCall, then the
@@ -547,8 +498,6 @@ void SeastarRemoteRendezvous::FuseRecvFromRemoteAsync(
     call->wi_ = nullptr;
     get_fuse_call_freelist()->Release(call, session()->worker_cache.get());
     Unref();
-    CAT_LOG(3)::logDuration(CAT_REPORTER::seastar_time_trace, "FuseRespDoneToRecvDone",
-                            env_->env->NowMicros() - recv_done_micros);
   });
 }
 

@@ -91,6 +91,19 @@ void NodeExecStatsWrapper::Done(const string& device) {
     TF_CHECK_OK(GetNodeAttr(attrs, "send_device", &send_device));
     text = strings::StrCat(memory, node_->name(), " = ", node_->type_string(),
                            "(", tensor_name, " @", send_device);
+  } else if (IsFuseRecv(node_)) {
+    std::vector<string> tensor_names;
+    TF_CHECK_OK(GetNodeAttr(attrs, "tensor_names", &tensor_names));
+    std::vector<string> send_devices;
+    TF_CHECK_OK(GetNodeAttr(attrs, "send_devices", &send_devices));
+    text = strings::StrCat(memory,
+                           node_->name(),
+                           " = ",
+                           node_->type_string(),
+                           "(",
+                           str_util::Join(tensor_names, ", "),
+                           " @",
+                           str_util::Join(send_devices, ", "));
   } else {
     text =
         strings::StrCat(memory, node_->name(), " = ", node_->type_string(), "(",
@@ -428,7 +441,7 @@ void StepStatsCollector::SaveThreadName(const string& device,
 NodeExecStatsInterface* StepStatsCollector::CreateNodeExecStats(
     const Node* node) {
   // Only collect statistics for non-transfer nodes.
-  if (IsSend(node) || IsRecv(node)) {
+  if (IsSend(node) || IsRecv(node) || IsFuseRecv(node)) {
     return nullptr;
   }
   return new NodeExecStatsWrapper(node, this);

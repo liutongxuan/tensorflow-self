@@ -33,7 +33,7 @@ bool CreateRunMetadataNode(const string& name, NodeDef* def) {
   // TODO(xpan): Better solution than blacklisting this 2 nodes. They
   // actually cost some resources, maybe include them. Some nodes, such
   // as _SOURCE appear in multiple devices, which breaks tfprof's assumption.
-  if (name == "RecvTensor" || name == "_SOURCE" ||
+  if (name == "RecvTensor" || name == "_SOURCE" || name == "FuseRecvTensor" ||
       name.find("MEMCPY") != name.npos) {
     return false;
   }
